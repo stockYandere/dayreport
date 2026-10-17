@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">dayreport</string>
+    <string name="widget_description">할 일 · O 완료 / X 안 함</string>
+</resources>

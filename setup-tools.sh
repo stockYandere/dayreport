@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 PROJECT_DIR=$(cd "$(dirname "$0")" && pwd)
-TOOLS_DIR="$PROJECT_DIR/../toolchain"
+TOOLS_DIR="$PROJECT_DIR/toolchain"
 mkdir -p "$TOOLS_DIR"
 if [ ! -d "$TOOLS_DIR/android-15" ]; then
  curl -fsSL https://dl.google.com/android/repository/build-tools_r35_linux.zip -o "$TOOLS_DIR/build-tools.zip"

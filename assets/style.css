@@ -14,3 +14,27 @@ nav{height:56px;padding:6px 0 10px;gap:5px}nav button{min-height:40px;border:1px
 @media(max-width:350px){.sleep-row{gap:4px;font-size:11px}.sleep-date{width:32px}.sleep-duration{width:57px}.sleep-row button{padding:3px 5px;font-size:11px}header>div:last-child{gap:5px}header button{width:36px}.candidate-choice{gap:4px;font-size:11px}.candidate-choice button{font-size:10px;padding:4px 5px}}
 @media(max-height:600px){header,.compact header{min-height:69px;padding:7px 0 9px}.chart{min-height:70px}.selection{padding:6px!important;gap:4px}.selection button{min-height:30px}.record-filters button{min-height:32px}.compact main{gap:5px}.record-count{display:block!important}}
 @media(max-height:470px){header,.compact header{min-height:62px;padding:5px 0 6px}header .sleep-switch{margin-top:4px}header b{font-size:15px}.chart{min-height:54px}.summary{padding:4px 6px}.sleep-row{height:40px;min-height:40px;flex-basis:40px}}
+
+/* dayreport 3.0: 하루 리포트 · 할 일 */
+:root{--use:#78a7ff;--olive:#7e7a2c;--olive-text:#d6d06e;--done-bg:#1f2b20;--done-line:#3d4d3c;--done-text:#a8d8a0;--skip-bg:#2b2020;--skip-line:#4d3838;--skip-text:#e3a49c}
+nav{gap:4px}nav button{padding:5px 2px;font-size:13px;min-width:0}
+button.olive{background:var(--olive);border-color:var(--olive);color:#fff;font-weight:700}
+.day-flow{border-radius:12px;background:var(--panel);padding:9px 8px 8px;display:flex;flex-direction:column;gap:5px;flex-shrink:0}.day-axis{margin-left:41px}
+.day-lane{display:flex;align-items:center;gap:6px;height:18px}.day-lane-label{width:35px;flex-shrink:0;font-size:11px;color:var(--muted)}
+.day-track{position:relative;flex:1;height:100%;background:repeating-linear-gradient(to right,transparent 0,transparent calc(25% - 1px),#354056 calc(25% - 1px),#354056 25%);border-left:1px solid #354056;border-radius:2px}
+.day-seg{position:absolute;top:2px;bottom:2px;border-radius:3px;min-width:2px}.day-seg.sleep{background:var(--sleep)}.day-seg.nap{background:var(--nap)}.day-seg.candidate{background:#69738930;border:1px dashed var(--candidate)}.day-seg.use{background:var(--use);min-width:1px;border-radius:1px}
+.day-tick{position:absolute;top:1px;bottom:1px;width:3px;margin-left:-1px;border-radius:2px;background:var(--olive-text)}
+.tiles{display:flex;gap:6px;flex-shrink:0}.tile{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:8px 9px;border-radius:12px;white-space:normal;text-align:left;min-height:0}.tile span{font-size:11px;color:var(--muted)}.tile b{font-size:16px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.tile small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.sleep-tile{border-color:#4b426d}.sleep-tile b{color:var(--sleep)}.use-tile{border-color:#2f4670}.use-tile b{color:var(--use)}.done-tile{border-color:#4a4823}.done-tile b{color:var(--olive-text)}
+.app-chips{display:flex;gap:10px;overflow:hidden;white-space:nowrap;font-size:11px;color:var(--muted);flex-shrink:0}.app-chip{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.day-done{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:9px 10px}.done-list{gap:0}
+.task-line{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap;cursor:pointer}.task-time{color:var(--olive-text);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:12px}.task-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.skipped .task-title{color:var(--muted);text-decoration:line-through}.skipped .task-time{color:var(--muted)}
+.tag{font-size:10px;padding:2px 6px;border-radius:5px;border:1px solid var(--skip-line);color:var(--skip-text);flex-shrink:0}.tag.done{border-color:var(--done-line);color:var(--done-text)}
+.add-task{flex-shrink:0}.add-task input{flex:1;min-height:44px}.add-task button{min-height:44px}
+.todo-list{gap:0}.todo-row{height:54px;flex:0 0 54px;display:flex;align-items:center;gap:7px;border-bottom:1px solid var(--line)}.todo-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;cursor:pointer}
+.ox{width:44px;height:44px;min-height:44px;padding:0;border-radius:12px;font-size:18px;font-weight:700;flex-shrink:0}.ox.o{background:var(--done-bg);border-color:var(--done-line);color:var(--done-text)}.ox.x{background:var(--skip-bg);border-color:var(--skip-line);color:var(--skip-text)}
+.history-row{cursor:pointer}.history-row .task-time{width:40px}
+@media(max-width:350px){nav button{font-size:12px}.tile{padding:6px 7px}.tile b{font-size:14px}.day-lane-label{width:30px}.day-axis{margin-left:36px}}
+@media(max-height:600px){.day-flow{padding:6px 7px;gap:3px}.day-lane{height:14px}.tile{padding:5px 8px}.tile b{font-size:14px}.app-chips{display:none}.day-done{padding:6px 8px;gap:4px}.task-line{height:34px;flex-basis:34px}.todo-row{height:48px;flex-basis:48px}.ox{width:40px;height:40px;min-height:40px}}
+@media(max-height:470px){.day-flow .axis{display:none}.tile small{display:none}.add-task input,.add-task button{min-height:36px}}
+.no-switch header,.no-switch.compact header{min-height:56px;padding-bottom:4px}

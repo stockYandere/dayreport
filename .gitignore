@@ -5,3 +5,5 @@ dex/
 *.apk
 signing.jks
 node_modules/
+gen/
+classes-test/

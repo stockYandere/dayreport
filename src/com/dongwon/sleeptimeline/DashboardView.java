@@ -74,6 +74,10 @@ final class DashboardView extends View {
     private int safeInsetTop;
     private final RectF secondNavRect;
     private final RectF thirdNavRect=new RectF();
+    private final RectF fourthNavRect=new RectF();
+    private final RectF fifthNavRect=new RectF();
+    private final List<RectF> appRowRects=new ArrayList<>();
+    private final List<Models.AppTotal> appRowItems=new ArrayList<>();
     private final RectF sleepGapRect=new RectF();
     private long gapStart=-1,gapEnd=-1;
     private org.json.JSONArray sleepRecords=new org.json.JSONArray();
@@ -92,10 +96,12 @@ final class DashboardView extends View {
         void openUsageAccessSettings();
 
         void refreshData();
-        void openSleepPage();
+        void openWebPage(String tab);
         void showSleepCandidates(long day,long start,long end);
 
-        void showAppsAt(long j, List<Models.Session> list, boolean z);
+        void showAppsAt(long hourStart, List<Models.Session> sessions, boolean fallback, long otherDuration, int otherApps);
+
+        void showAppSessions(Models.AppTotal total, long dayStart);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -200,7 +206,8 @@ final class DashboardView extends View {
         if (list == null) {
             list = new ArrayList<>();
         }
-        long chosen=this.selectedDay<this.days.size()?this.days.get(this.selectedDay).dayStart:-1;
+        long chosen=this.pendingDayStart>0?this.pendingDayStart:this.selectedDay<this.days.size()?this.days.get(this.selectedDay).dayStart:-1;
+        this.pendingDayStart=-1;
         this.days = list;
         rebuildHourlyCache();
         this.selectedDay = Math.max(0, this.days.size() - 1);
@@ -228,7 +235,7 @@ final class DashboardView extends View {
         float dp2 = dp(56.0f);
         float height = (getHeight() - this.safeInsetBottom) - dp2;
         float dp3 = this.safeInsetTop + dp(10.0f);
-        drawText(canvas, "사용 흐름", dp, dp3 + dp(27.0f), 25.0f, TEXT, true, Paint.Align.LEFT);
+        drawText(canvas, "사용시간", dp, dp3 + dp(27.0f), 25.0f, TEXT, true, Paint.Align.LEFT);
         this.refreshRect.set(width - dp(70.0f), dp3, width, dp(38.0f) + dp3);
         drawRoundRect(canvas, this.refreshRect, dp(18.0f), CARD_2);
         drawText(canvas, this.loading ? "읽는 중" : "새로고침", this.refreshRect.centerX(), this.refreshRect.centerY() + dp(5.0f), 11.0f, this.loading ? SUBTLE : BLUE, true, Paint.Align.CENTER);
@@ -314,7 +321,7 @@ final class DashboardView extends View {
         float dp2 = dp + dp(36.0f);
         drawRoundRect(canvas, new RectF(f, dp2, f2, f4), dp(20.0f), CARD);
         drawText(canvas, this.dateTitleFormat.format(new Date(dayRecord.dayStart)) + " · 24시간", dp(16.0f) + f, dp(27.0f) + dp2, 15.0f, TEXT, true, Paint.Align.LEFT);
-        drawText(canvas, "막대 전체=60분 · 좌우 이동", f2 - dp(16.0f), dp2 + dp(27.0f), 9.0f, MUTED, false, Paint.Align.RIGHT);
+        drawText(canvas, "0–60분 · 터치=상세", f2 - dp(16.0f), dp2 + dp(27.0f), 9.0f, MUTED, false, Paint.Align.RIGHT);
         this.timelineRect.set(dp(14.0f) + f, dp2 + dp(42.0f), f2 - dp(14.0f), f4 - dp(34.0f));
         drawHourlyTimeline(canvas, dayRecord, this.timelineRect);
         drawTimelineLegend(canvas, dayRecord, f + dp(16.0f), f4 - dp(10.0f), f2 - dp(16.0f));
@@ -347,129 +354,119 @@ final class DashboardView extends View {
         }
         drawHourlyBars(canvas, dayRecord, rectF, dp);
         canvas.restore();
+        for (int minute = 0; minute <= 60; minute += 20) {
+            float y = rectF.top + dp(22.0f) + ((rectF.height() - dp(62.0f)) * minute) / 60.0f;
+            drawText(canvas, String.valueOf(minute), rectF.left + dp(2.0f), y + (minute == 0 ? dp(9.0f) : -dp(2.0f)), 7.5f, SUBTLE, false, Paint.Align.LEFT);
+        }
         drawTimelineScrollThumb(canvas, rectF);
     }
 
-    private void drawHourlyBars(Canvas canvas, Models.DayRecord dayRecord, RectF rectF, float f) {
-        int i;
-        boolean z;
-        float f2;
-        float f3;
-        RectF rectF2;
-        HourlyBucket hourlyBucket;
-        int i2;
-        int i3;
-        boolean z2;
-        DashboardView dashboardView = this;
-        Canvas canvas2 = canvas;
-        float dp = rectF.top + dashboardView.dp(22.0f);
-        float dp2 = rectF.bottom - dashboardView.dp(40.0f);
-        float dp3 = dashboardView.dp(38.0f);
-        float dp4 = dashboardView.dp(12.0f);
-        int i4 = isToday(dayRecord.dayStart) ? Calendar.getInstance().get(11) : -1;
-        int i5 = 0;
-        while (i5 < 24) {
-            float f4 = f / 2.0f;
-            float f5 = ((rectF.left + (i5 * f)) + f4) - dashboardView.timelineScrollX;
-            if (f5 + dp3 < rectF.left) {
-                i = i5;
-            } else if (f5 - dp3 > rectF.right) {
-                i = i5;
-            } else {
-                if (i5 != i4) {
-                    z = false;
-                } else {
-                    z = true;
-                }
-                if (!z) {
-                    f2 = 2.0f;
-                } else {
-                    f2 = 2.0f;
-                    dashboardView.drawRoundRect(canvas2, new RectF((f5 - f4) + dashboardView.dp(5.0f), dp - dashboardView.dp(8.0f), (f4 + f5) - dashboardView.dp(5.0f), rectF.bottom - dashboardView.dp(6.0f)), dashboardView.dp(15.0f), 622686184);
-                }
-                float f6 = dp3 / f2;
-                RectF rectF3 = new RectF(f5 - f6, dp, f6 + f5, dp2);
-                dashboardView.drawRoundRect(canvas2, rectF3, dp4, -15262683);
-                HourlyBucket hourlyBucket2 = dashboardView.hourlyBucket(dayRecord, i5);
-                if (hourlyBucket2.apps.isEmpty()) {
-                    i = i5;
-                    f3 = f5;
-                    rectF2 = rectF3;
-                    hourlyBucket = hourlyBucket2;
-                } else {
-                    Path path = new Path();
-                    path.addRoundRect(rectF3, dp4, dp4, Path.Direction.CW);
-                    canvas2.save();
-                    canvas2.clipPath(path);
-                    i = i5;
-                    f3 = f5;
-                    float height = rectF3.height() / Math.max(HOUR_MS, hourlyBucket2.totalDuration);
-                    float f7 = rectF3.bottom;
-                    int i6 = 0;
-                    while (true) {
-                        if (i6 >= hourlyBucket2.apps.size()) {
-                            rectF2 = rectF3;
-                            hourlyBucket = hourlyBucket2;
-                            break;
-                        }
-                        HourlyAppUsage hourlyAppUsage = hourlyBucket2.apps.get(i6);
-                        float f8 = height;
-                        int i7 = i6;
-                        float max = Math.max(rectF3.top, f7 - (hourlyAppUsage.duration * f8));
-                        dashboardView.paint.setColor(hourlyAppUsage.app.color);
-                        hourlyBucket = hourlyBucket2;
-                        rectF2 = rectF3;
-                        canvas2.drawRect(rectF3.left, max, rectF3.right, f7, dashboardView.paint);
-                        if (i7 <= 0) {
-                            canvas2 = canvas;
-                        } else {
-                            dashboardView.paint.setColor(-1726999267);
-                            canvas2 = canvas;
-                            canvas2.drawRect(rectF2.left, f7 - dashboardView.dp(0.7f), rectF2.right, f7 + dashboardView.dp(0.7f), dashboardView.paint);
-                        }
-                        if (max <= rectF2.top) {
-                            break;
-                        }
-                        hourlyBucket2 = hourlyBucket;
-                        f7 = max;
-                        i6 = i7 + 1;
-                        rectF3 = rectF2;
-                        height = f8;
-                    }
-                    canvas2.restore();
-                }
-                dashboardView.paint.setStyle(Paint.Style.STROKE);
-                dashboardView.paint.setStrokeWidth(dashboardView.dp(z ? 2.5f : 1.0f));
-                Paint paint = dashboardView.paint;
-                if (z) {
-                    i2 = BLUE;
-                } else {
-                    i2 = hourlyBucket.apps.isEmpty() ? -13617082 : -10523779;
-                }
-                paint.setColor(i2);
-                canvas2.drawRoundRect(rectF2, dp4, dp4, dashboardView.paint);
-                dashboardView.paint.setStyle(Paint.Style.FILL);
-                if (z) {
-                    dashboardView.drawRoundRect(canvas2, new RectF(f3 - dashboardView.dp(18.0f), rectF.bottom - dashboardView.dp(32.0f), f3 + dashboardView.dp(18.0f), rectF.bottom - dashboardView.dp(7.0f)), dashboardView.dp(10.0f), BLUE_DARK);
-                }
-                String format = String.format(Locale.KOREA, "%02d", Integer.valueOf(i));
-                float dp5 = rectF.bottom - dashboardView.dp(16.0f);
-                if (z) {
-                    i3 = BLUE;
-                } else {
-                    i3 = hourlyBucket.apps.isEmpty() ? SUBTLE : TEXT;
-                }
-                if (!z && hourlyBucket.apps.isEmpty()) {
-                    z2 = false;
-                } else {
-                    z2 = true;
-                }
-                dashboardView.drawText(canvas2, format, f3, dp5, 10.0f, i3, z2, Paint.Align.CENTER);
+    // 막대 하나 = 한 시간. 위쪽 끝이 정각, 아래쪽 끝이 다음 정각이다.
+    // 앱별 색 구간을 실제로 사용한 분 위치에 그리고, 칸이 충분하면 "14–32"처럼 사용한 분을 적는다.
+    private void drawHourlyBars(Canvas canvas, Models.DayRecord dayRecord, RectF area, float slot) {
+        float top = area.top + dp(22.0f);
+        float bottom = area.bottom - dp(40.0f);
+        float barWidth = dp(38.0f);
+        float radius = dp(12.0f);
+        int currentHour = isToday(dayRecord.dayStart) ? Calendar.getInstance().get(Calendar.HOUR_OF_DAY) : -1;
+        for (int hour = 0; hour < 24; hour++) {
+            float center = area.left + hour * slot + slot / 2.0f - this.timelineScrollX;
+            if (center + barWidth < area.left || center - barWidth > area.right) {
+                continue;
             }
-            i5 = i + 1;
-            dashboardView = this;
-            canvas2 = canvas;
+            boolean current = hour == currentHour;
+            if (current) {
+                drawRoundRect(canvas, new RectF(center - slot / 2.0f + dp(5.0f), top - dp(8.0f), center + slot / 2.0f - dp(5.0f), area.bottom - dp(6.0f)), dp(15.0f), 622686184);
+            }
+            RectF bar = new RectF(center - barWidth / 2.0f, top, center + barWidth / 2.0f, bottom);
+            drawRoundRect(canvas, bar, radius, -15262683);
+            HourlyBucket bucket = hourlyBucket(dayRecord, hour);
+            if (!bucket.apps.isEmpty()) {
+                drawHourSegments(canvas, hourSegments(dayRecord, hour, bucket.packages), dayRecord.dayStart + hour * HOUR_MS, bar, radius);
+            }
+            this.paint.setStyle(Paint.Style.STROKE);
+            this.paint.setStrokeWidth(dp(current ? 2.5f : 1.0f));
+            this.paint.setColor(current ? BLUE : bucket.apps.isEmpty() ? -13617082 : -10523779);
+            canvas.drawRoundRect(bar, radius, radius, this.paint);
+            this.paint.setStyle(Paint.Style.FILL);
+            if (current) {
+                drawRoundRect(canvas, new RectF(center - dp(18.0f), area.bottom - dp(32.0f), center + dp(18.0f), area.bottom - dp(7.0f)), dp(10.0f), BLUE_DARK);
+            }
+            drawText(canvas, String.format(Locale.KOREA, "%02d", hour), center, area.bottom - dp(16.0f), 10.0f, current ? BLUE : bucket.apps.isEmpty() ? SUBTLE : TEXT, current || !bucket.apps.isEmpty(), Paint.Align.CENTER);
         }
+    }
+
+    private void drawHourSegments(Canvas canvas, List<Models.Session> segments, long hourStart, RectF bar, float radius) {
+        float scale = bar.height() / HOUR_MS;
+        Path path = new Path();
+        path.addRoundRect(bar, radius, radius, Path.Direction.CW);
+        canvas.save();
+        canvas.clipPath(path);
+        for (Models.Session segment : segments) {
+            float y1 = bar.top + (segment.start - hourStart) * scale;
+            float y2 = Math.max(y1 + dp(2.0f), bar.top + (segment.end - hourStart) * scale);
+            this.paint.setColor(segment.app.color);
+            canvas.drawRect(bar.left, y1, bar.right, y2, this.paint);
+            if (y1 > bar.top + dp(1.0f)) {
+                this.paint.setColor(-1726999267);
+                canvas.drawRect(bar.left, y1, bar.right, y1 + dp(0.8f), this.paint);
+            }
+        }
+        canvas.restore();
+        for (Models.Session segment : segments) {
+            float y1 = bar.top + (segment.start - hourStart) * scale;
+            float y2 = bar.top + (segment.end - hourStart) * scale;
+            String range = minuteRange(segment.start, segment.end, hourStart);
+            if (y2 - y1 >= dp(27.0f)) {
+                float middle = (y1 + y2) / 2.0f;
+                drawText(canvas, ellipsize(segment.app.label, 4), bar.centerX(), middle - dp(1.5f), 8.0f, BG, false, Paint.Align.CENTER);
+                drawText(canvas, range, bar.centerX(), middle + dp(9.0f), 8.5f, BG, true, Paint.Align.CENTER);
+            } else if (y2 - y1 >= dp(12.0f)) {
+                drawText(canvas, range, bar.centerX(), (y1 + y2) / 2.0f + dp(3.0f), 8.5f, BG, true, Paint.Align.CENTER);
+            }
+        }
+    }
+
+    // 시작 분은 내림, 끝 분은 올림. 다음 정각까지 이어지면 60으로 적는다.
+    static String minuteRange(long start, long end, long hourStart) {
+        long from = Math.max(0, Math.min(59, (start - hourStart) / 60000));
+        long to = Math.max(from + 1, Math.min(60, (end - hourStart + 59999) / 60000));
+        return String.format(Locale.KOREA, "%02d–%02d", from, to);
+    }
+
+    // 표시 대상 앱의 사용을 이 시간 안으로 자르고, 같은 앱이 1분 안에 다시 이어지면 한 구간으로 합친다.
+    static List<Models.Session> hourSegments(Models.DayRecord dayRecord, int hour, Set<String> packages) {
+        long from = dayRecord.dayStart + hour * HOUR_MS;
+        long to = from + HOUR_MS;
+        List<Models.Session> clipped = new ArrayList<>();
+        for (Models.Session session : dayRecord.sessions) {
+            if (packages.contains(session.app.packageName) && session.start < to && session.end > from) {
+                clipped.add(new Models.Session(session.app, Math.max(from, session.start), Math.min(to, session.end)));
+            }
+        }
+        return mergeSessions(clipped, 60000L);
+    }
+
+    static List<Models.Session> mergeSessions(List<Models.Session> sessions, long joinGap) {
+        List<Models.Session> sorted = new ArrayList<>(sessions);
+        Collections.sort(sorted, new Comparator<Models.Session>() {
+            public int compare(Models.Session a, Models.Session b) {
+                return Long.compare(a.start, b.start);
+            }
+        });
+        List<Models.Session> out = new ArrayList<>();
+        Map<String, Integer> lastIndex = new LinkedHashMap<>();
+        for (Models.Session session : sorted) {
+            Integer index = lastIndex.get(session.app.packageName);
+            if (index != null && index == out.size() - 1 && session.start - out.get(index).end <= joinGap) {
+                Models.Session previous = out.get(index);
+                out.set(index, new Models.Session(previous.app, previous.start, Math.max(previous.end, session.end)));
+                continue;
+            }
+            lastIndex.put(session.app.packageName, out.size());
+            out.add(session);
+        }
+        return out;
     }
 
     private static boolean isToday(long j) {
@@ -645,8 +642,12 @@ final class DashboardView extends View {
             dashboardView.drawText(canvas, "짧게 사용한 앱은 목록에서 숨깁니다", rectF2.centerX(), rectF2.centerY() + dashboardView.dp(22.0f), 10.0f, SUBTLE, false, Paint.Align.CENTER);
             dashboardView.previousPageRect.setEmpty();
             dashboardView.nextPageRect.setEmpty();
+            appRowRects.clear();
+            appRowItems.clear();
             return;
         }
+        appRowRects.clear();
+        appRowItems.clear();
         int i = dashboardView.appListPage * dashboardView.appsPerPage;
         int min = Math.min(filteredApps.size(), dashboardView.appsPerPage + i);
         dashboardView.drawRoundRect(canvas2, new RectF(f5, dp2, f6, ((min - i) * dp4) + dp2), dashboardView.dp(21.0f), CARD);
@@ -654,6 +655,8 @@ final class DashboardView extends View {
         int i2 = i;
         while (i2 < min) {
             dashboardView.drawCompactAppRow(canvas2, filteredApps.get(i2), f5, f6, f7, dp4);
+            appRowRects.add(new RectF(f5, f7, f6, f7 + dp4));
+            appRowItems.add(filteredApps.get(i2));
             float f8 = dp4;
             DashboardView dashboardView2 = dashboardView;
             float f9 = f7 + f8;
@@ -798,13 +801,10 @@ final class DashboardView extends View {
     private void drawBottomNavigation(Canvas canvas,float top,float height){
         paint.setColor(0xff10131b);canvas.drawRect(0,top,getWidth(),top+height,paint);
         paint.setColor(0xff2a3244);canvas.drawRect(dp(12.0f),top,getWidth()-dp(12.0f),top+dp(1.0f),paint);
-        float left=dp(12.0f),gap=dp(5.0f),width=(getWidth()-dp(24.0f)-gap*2)/3;
-        firstNavRect.set(left,top,left+width,top+height);left+=width+gap;
-        secondNavRect.set(left,top,left+width,top+height);left+=width+gap;
-        thirdNavRect.set(left,top,left+width,top+height);
-        drawBottomItem(canvas,firstNavRect,"시간대",page==0,false);
-        drawBottomItem(canvas,secondNavRect,"모든 앱",page==1,true);
-        drawBottomItem(canvas,thirdNavRect,"수면 기록",false,true);
+        RectF[] rects={fifthNavRect,firstNavRect,secondNavRect,thirdNavRect,fourthNavRect};
+        String[] labels={"하루","시간대","앱별","수면","할 일"};
+        float left=dp(12.0f),gap=dp(5.0f),width=(getWidth()-dp(24.0f)-gap*4)/5;
+        for(int n=0;n<rects.length;n++){rects[n].set(left,top,left+width,top+height);left+=width+gap;drawBottomItem(canvas,rects[n],labels[n],(n==1&&page==0)||(n==2&&page==1),true);}
     }
 
     private void drawBottomItem(Canvas canvas,RectF rect,String label,boolean active,boolean unused){
@@ -973,7 +973,9 @@ final class DashboardView extends View {
 
     private void handleTap(float f, float f2) {
         int i;
-        if(this.thirdNavRect.contains(f,f2)){this.actions.openSleepPage();return;}
+        if(this.fifthNavRect.contains(f,f2)){this.actions.openWebPage("report");return;}
+        if(this.thirdNavRect.contains(f,f2)){this.actions.openWebPage("sleep");return;}
+        if(this.fourthNavRect.contains(f,f2)){this.actions.openWebPage("todo");return;}
         if(this.page==0&&this.permissionGranted&&!this.loading&&this.sleepGapRect.contains(f,f2)&&selectedDay<days.size()){this.actions.showSleepCandidates(days.get(selectedDay).dayStart,gapStart,gapEnd);return;}
         if (this.refreshRect.contains(f, f2)) {
             this.actions.refreshData();
@@ -1018,6 +1020,12 @@ final class DashboardView extends View {
             } else {
                 i = 1;
             }
+            for (int row = 0; row < appRowRects.size(); row++) {
+                if (appRowRects.get(row).contains(f, f2) && this.selectedDay < this.days.size()) {
+                    this.actions.showAppSessions(appRowItems.get(row), this.days.get(this.selectedDay).dayStart);
+                    return;
+                }
+            }
             if (this.previousPageRect.contains(f, f2) && this.appListPage > 0) {
                 this.appListPage--;
                 invalidate();
@@ -1031,7 +1039,24 @@ final class DashboardView extends View {
         if (this.page == 0 && this.timelineRect.contains(f, f2) && this.selectedDay < this.days.size()) {
             Models.DayRecord dayRecord = this.days.get(this.selectedDay);
             int max = Math.max(0, Math.min(23, (int) Math.floor(((f - this.timelineRect.left) + this.timelineScrollX) / dp(64.0f))));
-            this.actions.showAppsAt(dayRecord.dayStart + (max * HOUR_MS), sessionsInHour(dayRecord, max), hourlyBucket(dayRecord, max).fallbackTopThree);
+            long hourStart = dayRecord.dayStart + (max * HOUR_MS);
+            Set<String> shown = hourlyBucket(dayRecord, max).packages;
+            Map<String, List<long[]>> others = new LinkedHashMap<>();
+            for (Models.Session session : dayRecord.sessions) {
+                if (!shown.contains(session.app.packageName) && session.start < hourStart + HOUR_MS && session.end > hourStart) {
+                    List<long[]> list = others.get(session.app.packageName);
+                    if (list == null) {
+                        list = new ArrayList<>();
+                        others.put(session.app.packageName, list);
+                    }
+                    list.add(new long[]{Math.max(hourStart, session.start), Math.min(hourStart + HOUR_MS, session.end)});
+                }
+            }
+            long otherDuration = 0;
+            for (List<long[]> list : others.values()) {
+                otherDuration += mergedDuration(list);
+            }
+            this.actions.showAppsAt(hourStart, sessionsInHour(dayRecord, max), hourlyBucket(dayRecord, max).fallbackTopThree, otherDuration, others.size());
         }
     }
 
@@ -1053,6 +1078,9 @@ final class DashboardView extends View {
     }
 
     void setPage(int value){this.page=value==1?1:0;invalidate();}
+    private long pendingDayStart=-1;
+    // 데이터가 아직 없으면 다음 setData에서 이 날짜를 고른다.
+    void selectDayStart(long dayStart){pendingDayStart=dayStart;for(int n=0;n<days.size();n++)if(days.get(n).dayStart==dayStart){selectedDay=n;appListPage=0;needsTimelinePosition=true;invalidate();return;}}
     boolean backToTimeline(){if(page!=0){page=0;invalidate();return true;}return false;}
     void setSleepRecords(org.json.JSONArray records){sleepRecords=records;invalidate();}
     private boolean hasSleepRecord(long start,long end){for(int n=0;n<sleepRecords.length();n++){org.json.JSONObject r=sleepRecords.optJSONObject(n);if(r!=null&&"confirmed".equals(r.optString("state"))&&r.optLong("start")<end&&r.optLong("end")>start)return true;}return false;}

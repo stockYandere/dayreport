@@ -50,7 +50,7 @@ final class UsageRepository {
         }
     }
 
-    List<Models.DayRecord> loadSevenDays() {
+    synchronized List<Models.DayRecord> loadSevenDays() {
         ArrayList arrayList = new ArrayList();
         Calendar calendar = Calendar.getInstance();
         setStartOfDay(calendar);
@@ -62,7 +62,7 @@ final class UsageRepository {
         return arrayList;
     }
 
-    private Models.DayRecord loadDay(long dayStart) {
+    synchronized Models.DayRecord loadDay(long dayStart) {
         Calendar cal=Calendar.getInstance();cal.setTimeInMillis(dayStart);cal.add(Calendar.DATE,1);
         long end=Math.min(cal.getTimeInMillis(),System.currentTimeMillis());
         if(end<=dayStart||usageStatsManager==null)return Models.DayRecord.empty(dayStart);
