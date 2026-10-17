@@ -46,6 +46,10 @@ final class UsageRepository {
         this.excludedPackages.add("com.android.systemui");
         this.excludedPackages.add("com.sec.android.app.launcher");
         this.excludedPackages.add("com.google.android.apps.nexuslauncher");
+        // 설치·권한 확인·공유 선택 화면은 다른 동작 중에 잠깐 뜨는 시스템 화면이라 사용시간에서 뺀다.
+        for (String helper : new String[]{"com.google.android.packageinstaller", "com.android.packageinstaller", "com.samsung.android.packageinstaller", "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.android.intentresolver"}) {
+            this.excludedPackages.add(helper);
+        }
         Intent addCategory = new Intent("android.intent.action.MAIN").addCategory("android.intent.category.HOME");
         if (addCategory.resolveActivity(this.packageManager) != null) {
             this.excludedPackages.add(addCategory.resolveActivity(this.packageManager).getPackageName());

@@ -98,7 +98,7 @@ final class DashboardView extends View {
         void openWebPage(String tab);
         void showSleepCandidates(long day,long start,long end);
 
-        void showAppsAt(long hourStart, List<Models.Session> sessions, boolean fallback, long otherDuration, int otherApps);
+        void showAppsAt(long hourStart, List<Models.Session> sessions);
 
         void showAppSessions(Models.AppTotal total, long dayStart);
     }
@@ -777,7 +777,7 @@ final class DashboardView extends View {
         float dp3 = dp2 + dp(48.0f);
         drawText(canvas, ellipsize(appTotal.app.label, 21), dp3, f3 + dp(23.0f), 13.0f, TEXT, true, Paint.Align.LEFT);
         drawText(canvas, formatDuration(appTotal.duration), f2 - dp(15.0f), f3 + dp(23.0f), 13.0f, BLUE, true, Paint.Align.RIGHT);
-        drawText(canvas, ellipsizeToWidth(appTotal.sessions.size() + "회 · " + formatPeriods(appTotal.sessions), (f2 - dp3) - dp(17.0f), 9.0f), dp3, f3 + dp(43.0f), 9.0f, MUTED, false, Paint.Align.LEFT);
+        drawText(canvas, ellipsizeToWidth(formatBlocks(Models.blocks(appTotal.sessions, Long.MIN_VALUE, Long.MAX_VALUE, 120000L)), (f2 - dp3) - dp(17.0f), 9.0f), dp3, f3 + dp(43.0f), 9.0f, MUTED, false, Paint.Align.LEFT);
     }
 
     private void drawPager(Canvas canvas, float f, float f2, float f3, int i, int i2) {
@@ -1045,41 +1045,19 @@ final class DashboardView extends View {
             Models.DayRecord dayRecord = this.days.get(this.selectedDay);
             int max = Math.max(0, Math.min(23, (int) Math.floor(((f - this.timelineRect.left) + this.timelineScrollX) / dp(64.0f))));
             long hourStart = dayRecord.dayStart + (max * HOUR_MS);
-            Set<String> shown = hourlyBucket(dayRecord, max).packages;
-            Map<String, List<long[]>> others = new LinkedHashMap<>();
+            // 막대에는 10분 이상 앱만 그리지만, 상세에는 그 시간의 사용을 모두 묶어서 보여 준다.
+            List<Models.Session> inHour = new ArrayList<>();
             for (Models.Session session : dayRecord.sessions) {
-                if (!shown.contains(session.app.packageName) && session.start < hourStart + HOUR_MS && session.end > hourStart) {
-                    List<long[]> list = others.get(session.app.packageName);
-                    if (list == null) {
-                        list = new ArrayList<>();
-                        others.put(session.app.packageName, list);
-                    }
-                    list.add(new long[]{Math.max(hourStart, session.start), Math.min(hourStart + HOUR_MS, session.end)});
+                if (session.start < hourStart + HOUR_MS && session.end > hourStart) {
+                    inHour.add(session);
                 }
             }
-            long otherDuration = 0;
-            for (List<long[]> list : others.values()) {
-                otherDuration += mergedDuration(list);
-            }
-            this.actions.showAppsAt(hourStart, sessionsInHour(dayRecord, max), hourlyBucket(dayRecord, max).fallbackTopThree, otherDuration, others.size());
+            this.actions.showAppsAt(hourStart, inHour);
         }
     }
 
     private void clampTimelineScroll() {
         this.timelineScrollX = clamp(this.timelineScrollX, 0.0f, Math.max(0.0f, this.timelineContentWidth - this.timelineRect.width()));
-    }
-
-    private ArrayList<Models.Session> sessionsInHour(Models.DayRecord dayRecord, int i) {
-        long j = dayRecord.dayStart + (i * HOUR_MS);
-        long j2 = HOUR_MS + j;
-        Set<String> set = hourlyBucket(dayRecord, i).packages;
-        ArrayList<Models.Session> arrayList = new ArrayList<>();
-        for (Models.Session session : dayRecord.sessions) {
-            if (set.contains(session.app.packageName) && session.start < j2 && session.end > j) {
-                arrayList.add(session);
-            }
-        }
-        return arrayList;
     }
 
     void setPage(int value){this.page=value==1?1:0;invalidate();}
@@ -1113,18 +1091,17 @@ final class DashboardView extends View {
 
     private static String appFilterCaption(Models.DayRecord day,int count){for(Models.AppTotal a:day.totals)if(a.duration>=MIN_VISIBLE_APP)return "10분 이상 · "+count+"개";return count>0?"10분 미만 · 상위 "+count+"개":"10분 이상 · 0개";}
 
-    private String formatPeriods(List<Models.Session> list) {
-        StringBuilder sb = new StringBuilder();
-        int min = Math.min(2, list.size());
-        for (int i = 0; i < min; i++) {
-            if (i > 0) {
-                sb.append(" · ");
-            }
-            Models.Session session = list.get(i);
-            sb.append(this.timeFormat.format(new Date(session.start))).append("–").append(this.timeFormat.format(new Date(session.end)));
+    // "3번 · 14:03–14:21 · 22:10 +1": 2분 안에 다시 연 것은 한 번으로 센다.
+    private String formatBlocks(List<Models.UseBlock> blocks) {
+        StringBuilder sb = new StringBuilder().append(blocks.size()).append("번");
+        int shown = Math.min(2, blocks.size());
+        for (int i = 0; i < shown; i++) {
+            Models.UseBlock block = blocks.get(i);
+            String start = this.timeFormat.format(new Date(block.start)), end = this.timeFormat.format(new Date(block.end));
+            sb.append(" · ").append(start.equals(end) ? start : start + "–" + end);
         }
-        if (list.size() > min) {
-            sb.append(" +").append(list.size() - min);
+        if (blocks.size() > shown) {
+            sb.append(" +").append(blocks.size() - shown);
         }
         return sb.toString();
     }

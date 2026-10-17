@@ -75,6 +75,82 @@ final class Models {
         }
     }
 
+    // 앱을 오가며 잠깐씩 쓴 것을 한 번의 사용으로 묶는다. 다음 사용이 gap 안에 시작하면 같은 묶음.
+    // 길이는 [from, to) 안에서 겹치지 않게 센 시간, 표시 시각은 실제 시작·끝.
+    static final class UseBlock {
+        final long start;
+        final long end;
+        final long duration;
+        final List<AppTotal> apps;
+
+        UseBlock(long start, long end, long duration, List<AppTotal> apps) {
+            this.start = start;
+            this.end = end;
+            this.duration = duration;
+            this.apps = apps;
+        }
+    }
+
+    static List<UseBlock> blocks(List<Session> sessions, long from, long to, long gap) {
+        List<Session> sorted = new ArrayList<>();
+        for (Session s : sessions) {
+            if (s.end > s.start && s.start < to && s.end > from) sorted.add(s);
+        }
+        java.util.Collections.sort(sorted, new java.util.Comparator<Session>() {
+            public int compare(Session a, Session b) {
+                return Long.compare(a.start, b.start);
+            }
+        });
+        List<UseBlock> out = new ArrayList<>();
+        int i = 0;
+        while (i < sorted.size()) {
+            long start = sorted.get(i).start, end = sorted.get(i).end;
+            int j = i + 1;
+            while (j < sorted.size() && sorted.get(j).start <= end + gap) {
+                end = Math.max(end, sorted.get(j).end);
+                j++;
+            }
+            List<Session> group = sorted.subList(i, j);
+            List<AppTotal> apps = new ArrayList<>();
+            for (List<Session> list : groupSessions(group).values()) {
+                apps.add(new AppTotal(list.get(0).app, union(list, from, to), list));
+            }
+            java.util.Collections.sort(apps, new java.util.Comparator<AppTotal>() {
+                public int compare(AppTotal a, AppTotal b) {
+                    return Long.compare(b.duration, a.duration);
+                }
+            });
+            out.add(new UseBlock(start, end, union(group, from, to), apps));
+            i = j;
+        }
+        return out;
+    }
+
+    // 겹치는 시간은 한 번만 센다.
+    static long union(List<Session> sessions, long from, long to) {
+        List<long[]> spans = new ArrayList<>();
+        for (Session s : sessions) {
+            long a = Math.max(from, s.start), b = Math.min(to, s.end);
+            if (b > a) spans.add(new long[]{a, b});
+        }
+        java.util.Collections.sort(spans, new java.util.Comparator<long[]>() {
+            public int compare(long[] a, long[] b) {
+                return Long.compare(a[0], b[0]);
+            }
+        });
+        long total = 0, s = -1, e = -1;
+        for (long[] span : spans) {
+            if (span[0] > e) {
+                total += e - s;
+                s = span[0];
+                e = span[1];
+            } else {
+                e = Math.max(e, span[1]);
+            }
+        }
+        return total + (e - s);
+    }
+
     static Map<String, List<Session>> groupSessions(List<Session> list) {
         LinkedHashMap linkedHashMap = new LinkedHashMap();
         for (Session session : list) {

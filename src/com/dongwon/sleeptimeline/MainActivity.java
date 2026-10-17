@@ -49,31 +49,39 @@ public class MainActivity extends Activity implements DashboardView.Actions {
  }
  void showDashboard(final int page){showDashboard(page,-1);}
  void showDashboard(final int page,final long day){runOnUiThread(new Runnable(){public void run(){web.setVisibility(View.GONE);dashboard.setVisibility(View.VISIBLE);if(page>=0)dashboard.setPage(page);if(day>0)dashboard.selectDayStart(day);refreshData();}});}
- // 막대를 누르면 그 시간에 쓴 앱을 몇 시 몇 분부터 몇 분까지 썼는지 시간 순서로 보여 준다.
- public void showAppsAt(long hour,List<Models.Session> sessions,boolean fallback,long otherDuration,int otherApps){
-  String label=new java.text.SimpleDateFormat("HH:mm",Locale.KOREA).format(new Date(hour))+"–"+new java.text.SimpleDateFormat("HH:mm",Locale.KOREA).format(new Date(hour+3600000));
-  List<Models.Session> merged=DashboardView.mergeSessions(sessions,60000L);
-  StringBuilder note=new StringBuilder();if(fallback)note.append("10분 이상 앱이 없어 상위 3개만 표시해.");
-  if(otherApps>0){if(note.length()>0)note.append('\n');note.append("그 밖의 짧은 사용 ").append(otherApps).append("개 앱 · ").append(minutes(otherDuration));}
-  sessionDialog(label+" 사용",merged,hour,hour+3600000,true,note.toString(),merged.isEmpty()?"이 시간에는 사용 기록이 없어.":null);
+ static final long BLOCK_GAP=2*60000L;
+ // 막대를 누르면 그 시간의 사용을 묶음 단위로 보여 준다. 2분 안에 이어서 쓴 앱들은 한 줄.
+ public void showAppsAt(long hour,List<Models.Session> sessions){
+  java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("HH:mm",Locale.KOREA);
+  List<Models.UseBlock> blocks=Models.blocks(sessions,hour,hour+3600000,BLOCK_GAP);
+  String note=blocks.isEmpty()?null:"총 "+duration(Models.union(sessions,hour,hour+3600000))+" · "+blocks.size()+"번 사용 · 2분 안에 이어 쓴 앱은 한 줄로 묶어";
+  blockDialog(f.format(new Date(hour))+"–"+f.format(new Date(hour+3600000))+" 사용",blocks,note,"이 시간에는 사용 기록이 없어.");
  }
  public void showAppSessions(Models.AppTotal total,long day){
   String date=new java.text.SimpleDateFormat("M월 d일",Locale.KOREA).format(new Date(day));
-  sessionDialog(total.app.label,DashboardView.mergeSessions(total.sessions,60000L),-1,-1,false,date+" · "+total.sessions.size()+"회 · 총 "+minutes(total.duration),null);
+  List<Models.UseBlock> blocks=Models.blocks(total.sessions,Long.MIN_VALUE,Long.MAX_VALUE,BLOCK_GAP);
+  blockDialog(total.app.label,blocks,date+" · "+blocks.size()+"번 사용 · 총 "+duration(total.duration),null);
  }
- static String minutes(long ms){long m=Math.max(1,Math.round(ms/60000.0));return m>=60?(m/60)+"시간"+(m%60>0?" "+(m%60)+"분":""):m+"분";}
- /* 한 줄: ● 14:03–14:21  유튜브  18분. clipFrom/clipTo가 있으면 길이는 그 시간 안에서 쓴 만큼. */
- void sessionDialog(String title,List<Models.Session> rows,long clipFrom,long clipTo,boolean showApp,String note,String empty){
+ // 1분 미만은 초로 적는다. 짧게 스친 사용이 1분으로 부풀려 보이지 않게.
+ static String duration(long ms){if(ms<60000)return Math.max(1,Math.round(ms/1000.0))+"초";long m=Math.round(ms/60000.0);return m>=60?(m/60)+"시간"+(m%60>0?" "+(m%60)+"분":""):m+"분";}
+ static String range(java.text.SimpleDateFormat f,long start,long end){String a=f.format(new Date(start)),b=f.format(new Date(end));return a.equals(b)?a:a+"–"+b;}
+ /* 한 줄: ● 14:03–14:21  18분. 여러 앱이면 아래 줄에 앱별 시간(많이 쓴 순, 3개까지). */
+ void blockDialog(String title,List<Models.UseBlock> blocks,String note,String empty){
   java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("HH:mm",Locale.KOREA);float d=getResources().getDisplayMetrics().density;
   android.text.SpannableStringBuilder text=new android.text.SpannableStringBuilder();
-  if(note!=null&&note.length()>0){int s0=text.length();text.append(note).append("\n\n");text.setSpan(new android.text.style.ForegroundColorSpan(Color.rgb(159,170,193)),s0,text.length(),0);text.setSpan(new android.text.style.RelativeSizeSpan(.85f),s0,text.length(),0);}
-  if(empty!=null)text.append(empty);
-  for(Models.Session r:rows){
-   long used=clipFrom>0?Math.max(0,Math.min(r.end,clipTo)-Math.max(r.start,clipFrom)):r.duration();
-   int s0=text.length();text.append("● ");text.setSpan(new android.text.style.ForegroundColorSpan(r.app.color|0xff000000),s0,s0+1,0);
-   int t0=text.length();text.append(f.format(new Date(r.start))).append("–").append(f.format(new Date(r.end)));text.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),t0,text.length(),0);text.setSpan(new android.text.style.TypefaceSpan("monospace"),t0,text.length(),0);
-   if(showApp)text.append("  ").append(r.app.label);
-   int m0=text.length();text.append("  ").append(minutes(used)).append("\n");text.setSpan(new android.text.style.ForegroundColorSpan(Color.rgb(120,167,255)),m0,text.length(),0);
+  if(note!=null){int s0=text.length();text.append(note).append("\n\n");text.setSpan(new android.text.style.ForegroundColorSpan(Color.rgb(159,170,193)),s0,text.length(),0);text.setSpan(new android.text.style.RelativeSizeSpan(.85f),s0,text.length(),0);}
+  if(blocks.isEmpty()&&empty!=null)text.append(empty);
+  for(Models.UseBlock b:blocks){
+   Models.AppMeta main=b.apps.get(0).app;
+   int s0=text.length();text.append("● ");text.setSpan(new android.text.style.ForegroundColorSpan(main.color|0xff000000),s0,s0+1,0);
+   int t0=text.length();text.append(range(f,b.start,b.end));text.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),t0,text.length(),0);text.setSpan(new android.text.style.TypefaceSpan("monospace"),t0,text.length(),0);
+   if(b.apps.size()==1){text.append("  ").append(main.label);}
+   int m0=text.length();text.append("  ").append(duration(b.duration)).append("\n");text.setSpan(new android.text.style.ForegroundColorSpan(Color.rgb(120,167,255)),m0,text.length(),0);
+   if(b.apps.size()>1){
+    StringBuilder line=new StringBuilder("    ");for(int n=0;n<Math.min(3,b.apps.size());n++){if(n>0)line.append(" · ");line.append(b.apps.get(n).app.label).append(' ').append(duration(b.apps.get(n).duration));}
+    if(b.apps.size()>3)line.append(" 외 ").append(b.apps.size()-3).append("개");
+    int l0=text.length();text.append(line).append("\n");text.setSpan(new android.text.style.ForegroundColorSpan(Color.rgb(159,170,193)),l0,text.length(),0);text.setSpan(new android.text.style.RelativeSizeSpan(.85f),l0,text.length(),0);
+   }
   }
   TextView view=new TextView(this);view.setText(text);view.setTextColor(Color.rgb(237,240,250));view.setTextSize(15);view.setLineSpacing(0,1.25f);int padding=(int)(d*22);view.setPadding(padding,(int)(d*6),padding,0);
   ScrollView scroll=new ScrollView(this);scroll.addView(view);
