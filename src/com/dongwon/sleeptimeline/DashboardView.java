@@ -392,8 +392,8 @@ final class DashboardView extends View {
         }
     }
 
-    // 한 시간을 10분 칸 6개로 나누고, 칸마다 가장 많이 쓴 앱 하나만 칸 전체에 칠한다.
-    // 1분 단위 조각을 모두 그리면 난잡해서, 칸 안의 실제 위치 대신 "이 10분은 무엇을 했나"만 보여 준다.
+    // 한 시간을 10분 칸 6개로 나누고, 칸마다 가장 많이 쓴 앱 하나만 그 앱을 쓴 시간만큼 칠한다.
+    // 칸 위쪽부터 채우며 10분을 다 쓰면 칸이 꽉 찬다. 1분 단위 조각 대신 "이 10분은 무엇을 얼마나 했나"만 보여 준다.
     private void drawTenMinuteSlots(Canvas canvas, Models.AppTotal[] slots, RectF bar, float radius) {
         float cell = bar.height() / SLOTS_PER_HOUR;
         Path path = new Path();
@@ -404,24 +404,33 @@ final class DashboardView extends View {
             if (slots[i] == null) {
                 continue;
             }
+            float top = bar.top + i * cell + dp(0.75f);
             this.paint.setColor(slots[i].app.color);
-            canvas.drawRect(bar.left, bar.top + i * cell + dp(0.75f), bar.right, bar.top + (i + 1) * cell - dp(0.75f), this.paint);
+            canvas.drawRect(bar.left, top, bar.right, top + fillHeight(slots[i], cell), this.paint);
         }
         canvas.restore();
         for (int i = 0; i < SLOTS_PER_HOUR; i++) {
             if (slots[i] == null) {
                 continue;
             }
-            int ink = labelColor(slots[i].app.color);
-            float middle = bar.top + (i + 0.5f) * cell;
+            float top = bar.top + i * cell + dp(0.75f), fill = fillHeight(slots[i], cell);
             String used = Models.durationText(slots[i].duration);
-            if (cell >= dp(30.0f)) {
-                drawText(canvas, ellipsize(slots[i].app.label, 4), bar.centerX(), middle - dp(1.5f), 8.0f, ink, false, Paint.Align.CENTER);
-                drawText(canvas, used, bar.centerX(), middle + dp(9.0f), 8.5f, ink, true, Paint.Align.CENTER);
-            } else if (cell >= dp(13.0f)) {
-                drawText(canvas, used, bar.centerX(), middle + dp(3.0f), 8.5f, ink, true, Paint.Align.CENTER);
+            int ink = labelColor(slots[i].app.color);
+            if (fill >= dp(27.0f)) {
+                drawText(canvas, ellipsize(slots[i].app.label, 4), bar.centerX(), top + fill / 2.0f - dp(1.5f), 8.0f, ink, false, Paint.Align.CENTER);
+                drawText(canvas, used, bar.centerX(), top + fill / 2.0f + dp(9.0f), 8.5f, ink, true, Paint.Align.CENTER);
+            } else if (fill >= dp(12.0f)) {
+                drawText(canvas, used, bar.centerX(), top + fill / 2.0f + dp(3.0f), 8.5f, ink, true, Paint.Align.CENTER);
+            } else if (cell - fill >= dp(13.0f)) {
+                // 색이 얇으면 시간은 바로 아래 빈 곳에 앱 색 글자로.
+                drawText(canvas, used, bar.centerX(), top + fill + dp(10.0f), 8.5f, slots[i].app.color, true, Paint.Align.CENTER);
             }
         }
+    }
+
+    private float fillHeight(Models.AppTotal slot, float cell) {
+        float inner = cell - dp(1.5f);
+        return Math.max(dp(2.0f), inner * Math.min(1.0f, slot.duration / (float) SLOT_MS));
     }
 
     // 밝은 색(주황·노랑·초록 등) 위에는 어두운 글자, 어두운 색(빨강·파랑·남색·보라) 위에는 흰 글자.
