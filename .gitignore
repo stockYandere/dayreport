@@ -1,0 +1,7 @@
+toolchain/
+output/
+classes/
+dex/
+*.apk
+signing.jks
+node_modules/
