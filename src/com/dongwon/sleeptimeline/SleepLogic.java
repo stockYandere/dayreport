@@ -1,6 +1,8 @@
 package com.dongwon.sleeptimeline;
 import java.util.*;
 public final class SleepLogic {
+ // 수면 후보 최소 길이: 휴대폰을 4시간 이상 쓰지 않은 구간. 낮·밤 구분 없음.
+ public static final long MIN_CANDIDATE=4L*3600000;
  public static class Event { public long time; public int type; public String pkg; public Event(long t,int e,String p){time=t;type=e;pkg=p==null?"":p;} }
  public static class Gap {public long start,end; public Gap(long s,long e){start=s;end=e;} }
  // Both ends must be observed. An empty history never becomes a sleep record.

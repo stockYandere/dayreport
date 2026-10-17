@@ -74,7 +74,6 @@ final class DashboardView extends View {
     private int safeInsetTop;
     private final RectF secondNavRect;
     private final RectF thirdNavRect=new RectF();
-    private final RectF fourthNavRect=new RectF();
     private final RectF fifthNavRect=new RectF();
     private final List<RectF> appRowRects=new ArrayList<>();
     private final List<Models.AppTotal> appRowItems=new ArrayList<>();
@@ -414,17 +413,24 @@ final class DashboardView extends View {
         }
         canvas.restore();
         for (Models.Session segment : segments) {
+            int ink = labelColor(segment.app.color);
             float y1 = bar.top + (segment.start - hourStart) * scale;
             float y2 = bar.top + (segment.end - hourStart) * scale;
             String range = minuteRange(segment.start, segment.end, hourStart);
             if (y2 - y1 >= dp(27.0f)) {
                 float middle = (y1 + y2) / 2.0f;
-                drawText(canvas, ellipsize(segment.app.label, 4), bar.centerX(), middle - dp(1.5f), 8.0f, BG, false, Paint.Align.CENTER);
-                drawText(canvas, range, bar.centerX(), middle + dp(9.0f), 8.5f, BG, true, Paint.Align.CENTER);
+                drawText(canvas, ellipsize(segment.app.label, 4), bar.centerX(), middle - dp(1.5f), 8.0f, ink, false, Paint.Align.CENTER);
+                drawText(canvas, range, bar.centerX(), middle + dp(9.0f), 8.5f, ink, true, Paint.Align.CENTER);
             } else if (y2 - y1 >= dp(12.0f)) {
-                drawText(canvas, range, bar.centerX(), (y1 + y2) / 2.0f + dp(3.0f), 8.5f, BG, true, Paint.Align.CENTER);
+                drawText(canvas, range, bar.centerX(), (y1 + y2) / 2.0f + dp(3.0f), 8.5f, ink, true, Paint.Align.CENTER);
             }
         }
+    }
+
+    // 밝은 색(주황·노랑·초록 등) 위에는 어두운 글자, 어두운 색(빨강·파랑·남색·보라) 위에는 흰 글자.
+    static int labelColor(int color) {
+        int r = (color >> 16) & 255, g = (color >> 8) & 255, b = color & 255;
+        return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? BG : -1;
     }
 
     // 시작 분은 내림, 끝 분은 올림. 다음 정각까지 이어지면 60으로 적는다.
@@ -801,10 +807,10 @@ final class DashboardView extends View {
     private void drawBottomNavigation(Canvas canvas,float top,float height){
         paint.setColor(0xff10131b);canvas.drawRect(0,top,getWidth(),top+height,paint);
         paint.setColor(0xff2a3244);canvas.drawRect(dp(12.0f),top,getWidth()-dp(12.0f),top+dp(1.0f),paint);
-        RectF[] rects={fifthNavRect,firstNavRect,secondNavRect,thirdNavRect,fourthNavRect};
-        String[] labels={"하루","시간대","앱별","수면","할 일"};
-        float left=dp(12.0f),gap=dp(5.0f),width=(getWidth()-dp(24.0f)-gap*4)/5;
-        for(int n=0;n<rects.length;n++){rects[n].set(left,top,left+width,top+height);left+=width+gap;drawBottomItem(canvas,rects[n],labels[n],(n==1&&page==0)||(n==2&&page==1),true);}
+        RectF[] rects={firstNavRect,fifthNavRect,secondNavRect,thirdNavRect};
+        String[] labels={"시간대","하루","앱별","수면"};
+        float left=dp(12.0f),gap=dp(5.0f),width=(getWidth()-dp(24.0f)-gap*3)/4;
+        for(int n=0;n<rects.length;n++){rects[n].set(left,top,left+width,top+height);left+=width+gap;drawBottomItem(canvas,rects[n],labels[n],(n==0&&page==0)||(n==2&&page==1),true);}
     }
 
     private void drawBottomItem(Canvas canvas,RectF rect,String label,boolean active,boolean unused){
@@ -975,7 +981,6 @@ final class DashboardView extends View {
         int i;
         if(this.fifthNavRect.contains(f,f2)){this.actions.openWebPage("report");return;}
         if(this.thirdNavRect.contains(f,f2)){this.actions.openWebPage("sleep");return;}
-        if(this.fourthNavRect.contains(f,f2)){this.actions.openWebPage("todo");return;}
         if(this.page==0&&this.permissionGranted&&!this.loading&&this.sleepGapRect.contains(f,f2)&&selectedDay<days.size()){this.actions.showSleepCandidates(days.get(selectedDay).dayStart,gapStart,gapEnd);return;}
         if (this.refreshRect.contains(f, f2)) {
             this.actions.refreshData();

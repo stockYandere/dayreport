@@ -10,21 +10,23 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
   if(Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(false);
   final FrameLayout host=new FrameLayout(this);host.setBackgroundColor(Color.rgb(9,10,16));
-  dashboard=new DashboardView(this,this);host.addView(dashboard);dashboard.setVisibility(View.GONE);
+  // 첫 화면은 시간대 그래프. 위젯에서 열면(route 있음) 하루 리포트.
+  dashboard=new DashboardView(this,this);host.addView(dashboard);
   web=new WebView(this);web.setBackgroundColor(Color.TRANSPARENT);host.addView(web);setContentView(host);
+  dashboard.setVisibility(pendingRoute==null?View.VISIBLE:View.GONE);web.setVisibility(pendingRoute==null?View.GONE:View.VISIBLE);
   host.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener(){public WindowInsets onApplyWindowInsets(View v,WindowInsets in){
    if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=in.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()),ime=in.getInsets(WindowInsets.Type.ime());host.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,ime.bottom));}
    else host.setPadding(in.getSystemWindowInsetLeft(),in.getSystemWindowInsetTop(),in.getSystemWindowInsetRight(),in.getSystemWindowInsetBottom());
    return in;
   }});host.requestApplyInsets();
   WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(false);settings.setAllowFileAccess(true);settings.setAllowContentAccess(false);settings.setAllowFileAccessFromFileURLs(false);settings.setAllowUniversalAccessFromFileURLs(false);settings.setTextZoom(100);web.setOverScrollMode(View.OVER_SCROLL_NEVER);
-  web.setWebViewClient(new WebViewClient(){public boolean shouldOverrideUrlLoading(WebView w,WebResourceRequest r){return !r.getUrl().toString().startsWith("file:///android_asset/");}public void onPageFinished(WebView w,String url){webReady=true;w.evaluateJavascript("window.startApp&&startApp("+JSONObject.quote(pendingRoute)+")",null);pendingRoute="report";}});
+  web.setWebViewClient(new WebViewClient(){public boolean shouldOverrideUrlLoading(WebView w,WebResourceRequest r){return !r.getUrl().toString().startsWith("file:///android_asset/");}public void onPageFinished(WebView w,String url){webReady=true;w.evaluateJavascript("window.startApp&&startApp("+JSONObject.quote(pendingRoute==null?"report":pendingRoute)+")",null);pendingRoute=null;}});
   web.addJavascriptInterface(new Bridge(),"Native");web.loadUrl("file:///android_asset/index.html");CaptureJob.schedule(this);TodoWidget.scheduleMidnight(this);
  }
- static String route(Intent i){String r=i==null?null:i.getStringExtra(EXTRA_ROUTE);return r==null?"report":r;}
- protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String r=route(intent);if(!webReady){pendingRoute=r;return;}dashboard.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);web.evaluateJavascript("openRoute("+JSONObject.quote(r)+")",null);}
+ static String route(Intent i){String r=i==null?null:i.getStringExtra(EXTRA_ROUTE);return r;}
+ protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String r=route(intent);if(r==null)return;if(!webReady){pendingRoute=r;dashboard.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);return;}dashboard.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);web.evaluateJavascript("openRoute("+JSONObject.quote(r)+")",null);}
  protected void onResume(){super.onResume();if(dashboard!=null)refreshData();if(web!=null&&webReady)web.evaluateJavascript("window.refresh&&refresh()",null);}
- public void onBackPressed(){if(web.getVisibility()==View.VISIBLE)web.evaluateJavascript("window.back&&back()",null);else if(!dashboard.backToTimeline()){if(webReady)openWebPage("report");else finish();}}
+ public void onBackPressed(){if(web.getVisibility()==View.VISIBLE)web.evaluateJavascript("window.back&&back()",null);else if(!dashboard.backToTimeline())finish();}
  protected void onDestroy(){generation++;executor.shutdownNow();if(web!=null){web.removeJavascriptInterface("Native");web.destroy();}if(store!=null)store.close();super.onDestroy();}
  public void openUsageAccessSettings(){try{startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS,Uri.parse("package:"+getPackageName())));}catch(Exception e){startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));}}
  public void refreshData(){
@@ -41,7 +43,7 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   if(!webReady)return;
   List<SleepLogic.Gap> use=new ArrayList<SleepLogic.Gap>();for(Models.DayRecord row:nativeDays)for(Models.Session session:row.sessions)use.add(new SleepLogic.Gap(session.start,session.end));
   Calendar c=Calendar.getInstance();c.setTimeInMillis(day);c.add(Calendar.DATE,1);
-  List<SleepLogic.Gap> gaps=SleepLogic.unusedGaps(use,day,c.getTimeInMillis(),5L*3600000);
+  List<SleepLogic.Gap> gaps=SleepLogic.unusedGaps(use,day,c.getTimeInMillis(),SleepLogic.MIN_CANDIDATE);
   JSONArray items=new JSONArray();try{for(SleepLogic.Gap gap:gaps)if(!store.isDismissed(gap.start,gap.end))items.put(new JSONObject().put("start",gap.start).put("end",gap.end));}catch(Exception ignored){}
   web.setVisibility(View.VISIBLE);web.evaluateJavascript("openNativeCandidates("+day+","+items.toString()+")",null);
  }
@@ -99,17 +101,16 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   @JavascriptInterface public void dashboardAt(int page,long day){showDashboard(page,day);}
   @JavascriptInterface public String dayReport(long day){try{return report(day).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String tasks(long from){try{long now=System.currentTimeMillis(),today=TaskStore.dayStart(now);return new JSONObject().put("ok",true).put("open",tasks.open()).put("finished",tasks.finished(TaskStore.dayStart(from),TaskStore.nextDay(today))).put("today",tasks.doneCount(today,TaskStore.nextDay(today))).put("now",now).toString();}catch(Exception e){return error(e);}}
-  @JavascriptInterface public String addTask(String title){try{tasks.add(title,System.currentTimeMillis());TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"추가했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String addDone(String title,long time){try{tasks.addDone(title,time,System.currentTimeMillis());TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"한 일을 기록했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String taskState(long id,String state){try{tasks.setState(id,state,System.currentTimeMillis());TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"처리했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String editTask(long id,String title,long finished){try{tasks.edit(id,title,finished,System.currentTimeMillis());TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"저장했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String deleteTask(long id){try{tasks.remove(id);TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"삭제했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public void closeNativeEditor(){showDashboard(-1);}
-  @JavascriptInterface public String refresh(){try{int events=UsageReader.capture(MainActivity.this);return new JSONObject().put("ok",true).put("permission",UsageReader.allowed(MainActivity.this)).put("records",store.all()).put("minimum",300).put("timer",getSharedPreferences("settings",0).getLong("timer",0)).put("events",events).put("now",System.currentTimeMillis()).toString();}catch(Exception e){return error(e);}}
+  @JavascriptInterface public String refresh(){try{int events=UsageReader.capture(MainActivity.this);return new JSONObject().put("ok",true).put("permission",UsageReader.allowed(MainActivity.this)).put("records",store.all()).put("minimum",SleepLogic.MIN_CANDIDATE/60000).put("timer",getSharedPreferences("settings",0).getLong("timer",0)).put("events",events).put("now",System.currentTimeMillis()).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String usage(long date){try{return UsageReader.usage(MainActivity.this,date).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String save(String data){try{store.save(new JSONObject(data));return new JSONObjectResult(true,"저장했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String remove(long id){try{store.remove(id);return new JSONObjectResult(true,"처리했어").text();}catch(Exception e){return error(e);}}
-  @JavascriptInterface public void minimum(int min){getSharedPreferences("settings",0).edit().putInt("minimum",300).apply();}
+  @JavascriptInterface public void minimum(int min){getSharedPreferences("settings",0).edit().putInt("minimum",(int)(SleepLogic.MIN_CANDIDATE/60000)).apply();}
   @JavascriptInterface public void timer(long time){if(time>=0&&time<=System.currentTimeMillis())getSharedPreferences("settings",0).edit().putLong("timer",time).commit();}
   @JavascriptInterface public void permission(){runOnUiThread(new Runnable(){public void run(){openUsageAccessSettings();}});}
   @JavascriptInterface public void export(){runOnUiThread(new Runnable(){public void run(){try{exportText=store.backup().put("tasks",tasks.all()).toString(2);Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE,"dayreport-"+new java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.US).format(new java.util.Date())+".json");startActivityForResult(i,10);}catch(Exception e){notifyUI("백업 파일을 만들지 못했어.");}}});}

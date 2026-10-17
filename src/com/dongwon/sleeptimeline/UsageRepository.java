@@ -26,7 +26,9 @@ import java.util.function.ToLongFunction;
 
 /* loaded from: classes.dex */
 final class UsageRepository {
-    private static final int[] APP_COLORS = {-8869889, -10036795, -18325, -3760897, -32866, -8926977, -4859027, -11930, -7427841, -9314154, -1733944, -6047796};
+    // 빨주노초파남보 다음 분홍, 청록, 갈색, 연두. 최근 7일 많이 쓴 순서대로 앞 색부터 준다. 그 뒤는 회색.
+    static final int[] APP_COLORS = {0xFFFF5252, 0xFFFF9800, 0xFFFFE03A, 0xFF4CD964, 0xFF3D9BFF, 0xFF5C6BC0, 0xFFB15CFF, 0xFFFF7EB9, 0xFF26D7C9, 0xFFC69C6D, 0xFFB4E05A};
+    static final int OTHER_COLOR = 0xFF8A93A6;
     private static final long HOUR = 3600000;
     private static final long MIN_SESSION = 1000;
     private final Context context;
@@ -59,6 +61,7 @@ final class UsageRepository {
             calendar2.add(6, -i);
             arrayList.add(loadDay(calendar2.getTimeInMillis()));
         }
+        assignColors(arrayList);
         return arrayList;
     }
 
@@ -83,6 +86,26 @@ final class UsageRepository {
         Collections.sort(totals,new Comparator<Models.AppTotal>(){public int compare(Models.AppTotal a,Models.AppTotal b){return Long.compare(b.duration,a.duration);}});
         long first=sessions.isEmpty()?-1:sessions.get(0).start,last=-1;for(Models.Session item:sessions)last=Math.max(last,item.end);
         return new Models.DayRecord(dayStart,sessions,totals,unionDuration(sessions),first,last);
+    }
+
+    static void assignColors(List<Models.DayRecord> days) {
+        final Map<Models.AppMeta, Long> totals = new HashMap<>();
+        for (Models.DayRecord day : days) {
+            for (Models.AppTotal total : day.totals) {
+                Long sum = totals.get(total.app);
+                totals.put(total.app, (sum == null ? 0L : sum) + total.duration);
+            }
+        }
+        List<Models.AppMeta> ranked = new ArrayList<>(totals.keySet());
+        Collections.sort(ranked, new Comparator<Models.AppMeta>() {
+            public int compare(Models.AppMeta a, Models.AppMeta b) {
+                int order = Long.compare(totals.get(b), totals.get(a));
+                return order != 0 ? order : a.packageName.compareTo(b.packageName);
+            }
+        });
+        for (int i = 0; i < ranked.size(); i++) {
+            ranked.get(i).color = i < APP_COLORS.length ? APP_COLORS[i] : OTHER_COLOR;
+        }
     }
 
     private void closeAll(Map<String, Long> map, List<Models.Session> list, long j, long j2, long j3) {
@@ -122,7 +145,7 @@ final class UsageRepository {
         } catch (Exception e) {
             bitmap = null;
         }
-        Models.AppMeta appMeta2 = new Models.AppMeta(str, simplePackageName, APP_COLORS[Math.floorMod(str.hashCode(), APP_COLORS.length)], bitmap);
+        Models.AppMeta appMeta2 = new Models.AppMeta(str, simplePackageName, OTHER_COLOR, bitmap);
         this.appCache.put(str, appMeta2);
         return appMeta2;
     }

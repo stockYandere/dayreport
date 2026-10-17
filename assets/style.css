@@ -30,11 +30,7 @@ button.olive{background:var(--olive);border-color:var(--olive);color:#fff;font-w
 .day-done{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:9px 10px}.done-list{gap:0}
 .task-line{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap;cursor:pointer}.task-time{color:var(--olive-text);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:12px}.task-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.skipped .task-title{color:var(--muted);text-decoration:line-through}.skipped .task-time{color:var(--muted)}
 .tag{font-size:10px;padding:2px 6px;border-radius:5px;border:1px solid var(--skip-line);color:var(--skip-text);flex-shrink:0}.tag.done{border-color:var(--done-line);color:var(--done-text)}
-.add-task{flex-shrink:0}.add-task input{flex:1;min-height:44px}.add-task button{min-height:44px}
-.todo-list{gap:0}.todo-row{height:54px;flex:0 0 54px;display:flex;align-items:center;gap:7px;border-bottom:1px solid var(--line)}.todo-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;cursor:pointer}
-.ox{width:44px;height:44px;min-height:44px;padding:0;border-radius:12px;font-size:18px;font-weight:700;flex-shrink:0}.ox.o{background:var(--done-bg);border-color:var(--done-line);color:var(--done-text)}.ox.x{background:var(--skip-bg);border-color:var(--skip-line);color:var(--skip-text)}
-.history-row{cursor:pointer}.history-row .task-time{width:40px}
 @media(max-width:350px){nav button{font-size:12px}.tile{padding:6px 7px}.tile b{font-size:14px}.day-lane-label{width:30px}.day-axis{margin-left:36px}}
-@media(max-height:600px){.day-flow{padding:6px 7px;gap:3px}.day-lane{height:14px}.tile{padding:5px 8px}.tile b{font-size:14px}.app-chips{display:none}.day-done{padding:6px 8px;gap:4px}.task-line{height:34px;flex-basis:34px}.todo-row{height:48px;flex-basis:48px}.ox{width:40px;height:40px;min-height:40px}}
-@media(max-height:470px){.day-flow .axis{display:none}.tile small{display:none}.add-task input,.add-task button{min-height:36px}}
+@media(max-height:600px){.day-flow{padding:6px 7px;gap:3px}.day-lane{height:14px}.tile{padding:5px 8px}.tile b{font-size:14px}.app-chips{display:none}.day-done{padding:6px 8px;gap:4px}.task-line{height:34px;flex-basis:34px}}
+@media(max-height:470px){.day-flow .axis{display:none}.tile small{display:none}}
 .no-switch header,.no-switch.compact header{min-height:56px;padding-bottom:4px}

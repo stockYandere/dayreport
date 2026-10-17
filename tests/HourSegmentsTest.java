@@ -20,6 +20,11 @@ public class HourSegmentsTest {
   check(TaskStore.clean("  창문에   검은 네모\n붙이기 ").equals("창문에 검은 네모 붙이기"),"Whitespace normalised");
   StringBuilder big=new StringBuilder();for(int i=0;i<201;i++)big.append('가');try{TaskStore.clean(big.toString());check(false,"201 chars rejected");}catch(Exception expected){}
   check(TaskStore.validState("done")&&TaskStore.validState("skipped")&&TaskStore.validState("open")&&!TaskStore.validState("dismissed"),"Task states");
-  System.out.println("PASS: 12 minute-range, hourly segment and task validation checks");
+  Models.AppMeta c=new Models.AppMeta("c","C",0,null);List<Models.DayRecord> days=Arrays.asList(new Models.DayRecord(day,new ArrayList<Models.Session>(),Arrays.asList(new Models.AppTotal(a,10*m,new ArrayList<Models.Session>()),new Models.AppTotal(b,30*m,new ArrayList<Models.Session>())),0,0,0),new Models.DayRecord(day+24*h,new ArrayList<Models.Session>(),Arrays.asList(new Models.AppTotal(a,25*m,new ArrayList<Models.Session>()),new Models.AppTotal(c,m,new ArrayList<Models.Session>())),0,0,0));
+  UsageRepository.assignColors(days);check(a.color==0xFFFF5252&&b.color==0xFFFF9800&&c.color==0xFFFFE03A,"Rainbow colors by 7-day usage rank: red, orange, yellow");
+  check(DashboardView.labelColor(0xFFFFE03A)!=-1&&DashboardView.labelColor(0xFF5C6BC0)==-1,"Dark text on yellow, white text on indigo");
+  List<SleepLogic.Gap> use=Arrays.asList(new SleepLogic.Gap(day-h,day+h),new SleepLogic.Gap(day+5*h,day+6*h),new SleepLogic.Gap(day+10*h-1,day+11*h));
+  List<SleepLogic.Gap> gaps=SleepLogic.unusedGaps(use,0,Long.MAX_VALUE,SleepLogic.MIN_CANDIDATE);check(gaps.size()==1&&gaps.get(0).start==day+h&&gaps.get(0).end==day+5*h,"Exactly 4h daytime gap is a candidate, 4h minus 1ms is not");
+  System.out.println("PASS: 16 minute-range, hourly segment, rainbow color, 4h candidate and task validation checks");
  }
 }

@@ -12,7 +12,7 @@ final class Models {
     }
 
     static final class AppMeta {
-        final int color;
+        int color;
         final Bitmap icon;
         final String label;
         final String packageName;
