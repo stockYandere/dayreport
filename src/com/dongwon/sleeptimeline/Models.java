@@ -75,6 +75,9 @@ final class Models {
         }
     }
 
+    // 앞 사용이 끝나고 10분 안에 다시 쓰면 같은 사용 묶음으로 본다.
+    static final long BLOCK_GAP = 10 * 60000L;
+
     // 앱을 오가며 잠깐씩 쓴 것을 한 번의 사용으로 묶는다. 다음 사용이 gap 안에 시작하면 같은 묶음.
     // 길이는 [from, to) 안에서 겹치지 않게 센 시간, 표시 시각은 실제 시작·끝.
     static final class UseBlock {

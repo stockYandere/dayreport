@@ -49,17 +49,16 @@ public class MainActivity extends Activity implements DashboardView.Actions {
  }
  void showDashboard(final int page){showDashboard(page,-1);}
  void showDashboard(final int page,final long day){runOnUiThread(new Runnable(){public void run(){web.setVisibility(View.GONE);dashboard.setVisibility(View.VISIBLE);if(page>=0)dashboard.setPage(page);if(day>0)dashboard.selectDayStart(day);refreshData();}});}
- static final long BLOCK_GAP=2*60000L;
- // 막대를 누르면 그 시간의 사용을 묶음 단위로 보여 준다. 2분 안에 이어서 쓴 앱들은 한 줄.
+ // 막대를 누르면 그 시간의 사용을 묶음 단위로 보여 준다. 10분 안에 이어서 쓴 앱들은 한 줄.
  public void showAppsAt(long hour,List<Models.Session> sessions){
   java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("HH:mm",Locale.KOREA);
-  List<Models.UseBlock> blocks=Models.blocks(sessions,hour,hour+3600000,BLOCK_GAP);
-  String note=blocks.isEmpty()?null:"총 "+duration(Models.union(sessions,hour,hour+3600000))+" · "+blocks.size()+"번 사용 · 2분 안에 이어 쓴 앱은 한 줄로 묶어";
+  List<Models.UseBlock> blocks=Models.blocks(sessions,hour,hour+3600000,Models.BLOCK_GAP);
+  String note=blocks.isEmpty()?null:"총 "+duration(Models.union(sessions,hour,hour+3600000))+" · "+blocks.size()+"번 사용 · 10분 안에 이어 쓴 앱은 한 줄로 묶어";
   blockDialog(f.format(new Date(hour))+"–"+f.format(new Date(hour+3600000))+" 사용",blocks,note,"이 시간에는 사용 기록이 없어.");
  }
  public void showAppSessions(Models.AppTotal total,long day){
   String date=new java.text.SimpleDateFormat("M월 d일",Locale.KOREA).format(new Date(day));
-  List<Models.UseBlock> blocks=Models.blocks(total.sessions,Long.MIN_VALUE,Long.MAX_VALUE,BLOCK_GAP);
+  List<Models.UseBlock> blocks=Models.blocks(total.sessions,Long.MIN_VALUE,Long.MAX_VALUE,Models.BLOCK_GAP);
   blockDialog(total.app.label,blocks,date+" · "+blocks.size()+"번 사용 · 총 "+duration(total.duration),null);
  }
  // 1분 미만은 초로 적는다. 짧게 스친 사용이 1분으로 부풀려 보이지 않게.

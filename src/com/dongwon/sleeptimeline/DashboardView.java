@@ -777,7 +777,7 @@ final class DashboardView extends View {
         float dp3 = dp2 + dp(48.0f);
         drawText(canvas, ellipsize(appTotal.app.label, 21), dp3, f3 + dp(23.0f), 13.0f, TEXT, true, Paint.Align.LEFT);
         drawText(canvas, formatDuration(appTotal.duration), f2 - dp(15.0f), f3 + dp(23.0f), 13.0f, BLUE, true, Paint.Align.RIGHT);
-        drawText(canvas, ellipsizeToWidth(formatBlocks(Models.blocks(appTotal.sessions, Long.MIN_VALUE, Long.MAX_VALUE, 120000L)), (f2 - dp3) - dp(17.0f), 9.0f), dp3, f3 + dp(43.0f), 9.0f, MUTED, false, Paint.Align.LEFT);
+        drawText(canvas, ellipsizeToWidth(formatBlocks(Models.blocks(appTotal.sessions, Long.MIN_VALUE, Long.MAX_VALUE, Models.BLOCK_GAP)), (f2 - dp3) - dp(17.0f), 9.0f), dp3, f3 + dp(43.0f), 9.0f, MUTED, false, Paint.Align.LEFT);
     }
 
     private void drawPager(Canvas canvas, float f, float f2, float f3, int i, int i2) {
@@ -1091,7 +1091,7 @@ final class DashboardView extends View {
 
     private static String appFilterCaption(Models.DayRecord day,int count){for(Models.AppTotal a:day.totals)if(a.duration>=MIN_VISIBLE_APP)return "10분 이상 · "+count+"개";return count>0?"10분 미만 · 상위 "+count+"개":"10분 이상 · 0개";}
 
-    // "3번 · 14:03–14:21 · 22:10 +1": 2분 안에 다시 연 것은 한 번으로 센다.
+    // "3번 · 14:03–14:21 · 22:10 +1": 10분 안에 다시 연 것은 한 번으로 센다.
     private String formatBlocks(List<Models.UseBlock> blocks) {
         StringBuilder sb = new StringBuilder().append(blocks.size()).append("번");
         int shown = Math.min(2, blocks.size());

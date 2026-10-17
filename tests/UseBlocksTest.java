@@ -15,6 +15,8 @@ public class UseBlocksTest {
   check(Models.union(Arrays.asList(new Models.Session(claude,hour,hour+10*m),new Models.Session(files,hour+5*m,hour+12*m)),hour,hour+h)==12*m,"Overlaps counted once");
   check(MainActivity.duration(20*s).equals("20초")&&MainActivity.duration(400).equals("1초")&&MainActivity.duration(90*s).equals("2분")&&MainActivity.duration(65*m).equals("1시간 5분"),"Under a minute shows seconds");
   check(Models.blocks(new ArrayList<Models.Session>(),hour,hour+h,2*m).isEmpty(),"No use, no blocks");
-  System.out.println("PASS: 8 use-block grouping and duration checks");
+  b=Models.blocks(rows,hour,hour+h,Models.BLOCK_GAP);check(b.size()==1&&b.get(0).start==hour+27*m+10*s&&b.get(0).end==hour+43*m+30*s&&b.get(0).apps.size()==3&&b.get(0).apps.get(0).app==claude&&b.get(0).duration==250*s,"10 min grouping: whole 03:27-03:43 screenshot is one row");
+  b=Models.blocks(Arrays.asList(new Models.Session(claude,hour,hour+m),new Models.Session(claude,hour+11*m+1,hour+12*m)),hour,hour+h,Models.BLOCK_GAP);check(b.size()==2,"Gap over 10 min stays separate");
+  System.out.println("PASS: 10 use-block grouping and duration checks");
  }
 }
