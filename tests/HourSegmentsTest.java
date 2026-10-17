@@ -13,6 +13,11 @@ public class HourSegmentsTest {
   check(slots[2].app==b&&slots[2].duration==4*m,"Cell 2: app with more minutes wins");
   check(slots[3]==null,"Cell 3: no use");
   check(slots[4].app==a&&slots[4].duration==5*m&&slots[5].app==a&&slots[5].duration==10*m,"Cells 4-5: continuing use clipped per cell and at the next hour");
+  List<long[]> spans=DashboardView.slotSpans(slots[2],hour,2);check(spans.size()==1&&spans.get(0)[0]==hour+23*m&&spans.get(0)[1]==hour+27*m,"Cell 2 colors only 23-27 where the top app was used");
+  check(DashboardView.minuteRange(spans.get(0)[0],spans.get(0)[1],hour).equals("23–27"),"Range label");
+  spans=DashboardView.slotSpans(slots[4],hour,4);check(spans.size()==1&&spans.get(0)[0]==hour+45*m&&spans.get(0)[1]==hour+50*m,"Continuing use clipped to its cell (45-50)");
+  check(DashboardView.minuteRange(hour+50*m,hour+h,hour).equals("50–60"),"Through the hour ends at 60");
+  check(DashboardView.slotSpans(new Models.AppTotal(a,2*m,Arrays.asList(new Models.Session(a,hour+m,hour+2*m),new Models.Session(a,hour+2*m+30000,hour+3*m),new Models.Session(a,hour+6*m,hour+7*m))),hour,0).size()==2,"Re-open within a minute joins, longer gap stays separate");
   check(Models.durationText(10*m).equals("10분")&&Models.durationText(45000).equals("45초"),"Cell labels");
   Models.AppTotal[] empty=DashboardView.tenMinuteSlots(new Models.DayRecord(day,new ArrayList<Models.Session>(),new ArrayList<Models.AppTotal>(),0,0,0),3);for(Models.AppTotal t:empty)check(t==null,"Empty hour draws nothing");
   try{TaskStore.clean("   ");check(false,"Blank title rejected");}catch(Exception expected){}
@@ -24,6 +29,6 @@ public class HourSegmentsTest {
   check(DashboardView.labelColor(0xFFFFE03A)!=-1&&DashboardView.labelColor(0xFF5C6BC0)==-1,"Dark text on yellow, white text on indigo");
   List<SleepLogic.Gap> use=Arrays.asList(new SleepLogic.Gap(day-h,day+h),new SleepLogic.Gap(day+5*h,day+6*h),new SleepLogic.Gap(day+10*h-1,day+11*h));
   List<SleepLogic.Gap> gaps=SleepLogic.unusedGaps(use,0,Long.MAX_VALUE,SleepLogic.MIN_CANDIDATE);check(gaps.size()==1&&gaps.get(0).start==day+h&&gaps.get(0).end==day+5*h,"Exactly 4h daytime gap is a candidate, 4h minus 1ms is not");
-  System.out.println("PASS: 17 ten-minute cell, rainbow color, 4h candidate and task validation checks");
+  System.out.println("PASS: 22 ten-minute cell, rainbow color, 4h candidate and task validation checks");
  }
 }

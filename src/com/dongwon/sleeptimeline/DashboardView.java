@@ -320,7 +320,7 @@ final class DashboardView extends View {
         float dp2 = dp + dp(36.0f);
         drawRoundRect(canvas, new RectF(f, dp2, f2, f4), dp(20.0f), CARD);
         drawText(canvas, this.dateTitleFormat.format(new Date(dayRecord.dayStart)) + " · 24시간", dp(16.0f) + f, dp(27.0f) + dp2, 15.0f, TEXT, true, Paint.Align.LEFT);
-        drawText(canvas, "10분 칸 · 터치=상세", f2 - dp(16.0f), dp2 + dp(27.0f), 9.0f, MUTED, false, Paint.Align.RIGHT);
+        drawText(canvas, "0–60분 · 10분마다 최다 앱", f2 - dp(16.0f), dp2 + dp(27.0f), 9.0f, MUTED, false, Paint.Align.RIGHT);
         this.timelineRect.set(dp(14.0f) + f, dp2 + dp(42.0f), f2 - dp(14.0f), f4 - dp(34.0f));
         drawHourlyTimeline(canvas, dayRecord, this.timelineRect);
         drawTimelineLegend(canvas, dayRecord, f + dp(16.0f), f4 - dp(10.0f), f2 - dp(16.0f));
@@ -360,7 +360,7 @@ final class DashboardView extends View {
         drawTimelineScrollThumb(canvas, rectF);
     }
 
-    // 막대 하나 = 한 시간. 위에서부터 00–10분, 10–20분 … 50–60분 칸 6개.
+    // 막대 하나 = 한 시간. 위쪽 끝이 정각, 아래쪽 끝이 60분. 10분 칸마다 최다 앱 하나를 실제 쓴 분 위치에.
     private void drawHourlyBars(Canvas canvas, Models.DayRecord dayRecord, RectF area, float slot) {
         float top = area.top + dp(22.0f);
         float bottom = area.bottom - dp(40.0f);
@@ -379,7 +379,7 @@ final class DashboardView extends View {
             RectF bar = new RectF(center - barWidth / 2.0f, top, center + barWidth / 2.0f, bottom);
             drawRoundRect(canvas, bar, radius, -15262683);
             HourlyBucket bucket = hourlyBucket(dayRecord, hour);
-            drawTenMinuteSlots(canvas, tenMinuteSlots(dayRecord, hour), bar, radius);
+            drawTenMinuteSlots(canvas, tenMinuteSlots(dayRecord, hour), dayRecord.dayStart + hour * HOUR_MS, bar, radius);
             this.paint.setStyle(Paint.Style.STROKE);
             this.paint.setStrokeWidth(dp(current ? 2.5f : 1.0f));
             this.paint.setColor(current ? BLUE : bucket.apps.isEmpty() ? -13617082 : -10523779);
@@ -392,10 +392,10 @@ final class DashboardView extends View {
         }
     }
 
-    // 한 시간을 10분 칸 6개로 나누고, 칸마다 가장 많이 쓴 앱 하나만 그 앱을 쓴 시간만큼 칠한다.
-    // 칸 위쪽부터 채우며 10분을 다 쓰면 칸이 꽉 찬다. 1분 단위 조각 대신 "이 10분은 무엇을 얼마나 했나"만 보여 준다.
-    private void drawTenMinuteSlots(Canvas canvas, Models.AppTotal[] slots, RectF bar, float radius) {
-        float cell = bar.height() / SLOTS_PER_HOUR;
+    // 한 시간을 10분 칸 6개로 나누고, 칸마다 가장 많이 쓴 앱 하나만 그 앱을 실제로 쓴 분 위치에 칠한다.
+    // 예: 10–20분 칸의 최다 앱을 14분부터 20분까지 썼으면 14–20분 자리만 칠한다. 다른 앱은 그리지 않는다.
+    private void drawTenMinuteSlots(Canvas canvas, Models.AppTotal[] slots, long hourStart, RectF bar, float radius) {
+        float scale = bar.height() / HOUR_MS;
         Path path = new Path();
         path.addRoundRect(bar, radius, radius, Path.Direction.CW);
         canvas.save();
@@ -404,33 +404,60 @@ final class DashboardView extends View {
             if (slots[i] == null) {
                 continue;
             }
-            float top = bar.top + i * cell + dp(0.75f);
             this.paint.setColor(slots[i].app.color);
-            canvas.drawRect(bar.left, top, bar.right, top + fillHeight(slots[i], cell), this.paint);
+            for (long[] span : slotSpans(slots[i], hourStart, i)) {
+                float y1 = bar.top + (span[0] - hourStart) * scale;
+                canvas.drawRect(bar.left, y1, bar.right, Math.max(y1 + dp(2.0f), bar.top + (span[1] - hourStart) * scale), this.paint);
+            }
         }
         canvas.restore();
         for (int i = 0; i < SLOTS_PER_HOUR; i++) {
             if (slots[i] == null) {
                 continue;
             }
-            float top = bar.top + i * cell + dp(0.75f), fill = fillHeight(slots[i], cell);
-            String used = Models.durationText(slots[i].duration);
             int ink = labelColor(slots[i].app.color);
-            if (fill >= dp(27.0f)) {
-                drawText(canvas, ellipsize(slots[i].app.label, 4), bar.centerX(), top + fill / 2.0f - dp(1.5f), 8.0f, ink, false, Paint.Align.CENTER);
-                drawText(canvas, used, bar.centerX(), top + fill / 2.0f + dp(9.0f), 8.5f, ink, true, Paint.Align.CENTER);
-            } else if (fill >= dp(12.0f)) {
-                drawText(canvas, used, bar.centerX(), top + fill / 2.0f + dp(3.0f), 8.5f, ink, true, Paint.Align.CENTER);
-            } else if (cell - fill >= dp(13.0f)) {
-                // 색이 얇으면 시간은 바로 아래 빈 곳에 앱 색 글자로.
-                drawText(canvas, used, bar.centerX(), top + fill + dp(10.0f), 8.5f, slots[i].app.color, true, Paint.Align.CENTER);
+            for (long[] span : slotSpans(slots[i], hourStart, i)) {
+                float y1 = bar.top + (span[0] - hourStart) * scale, y2 = bar.top + (span[1] - hourStart) * scale;
+                String range = minuteRange(span[0], span[1], hourStart);
+                if (y2 - y1 >= dp(27.0f)) {
+                    drawText(canvas, ellipsize(slots[i].app.label, 4), bar.centerX(), (y1 + y2) / 2.0f - dp(1.5f), 8.0f, ink, false, Paint.Align.CENTER);
+                    drawText(canvas, range, bar.centerX(), (y1 + y2) / 2.0f + dp(9.0f), 8.5f, ink, true, Paint.Align.CENTER);
+                } else if (y2 - y1 >= dp(12.0f)) {
+                    drawText(canvas, range, bar.centerX(), (y1 + y2) / 2.0f + dp(3.0f), 8.5f, ink, true, Paint.Align.CENTER);
+                }
             }
         }
     }
 
-    private float fillHeight(Models.AppTotal slot, float cell) {
-        float inner = cell - dp(1.5f);
-        return Math.max(dp(2.0f), inner * Math.min(1.0f, slot.duration / (float) SLOT_MS));
+    // 칸 안에서 그 앱을 쓴 구간(칸 경계로 자름). 1분 안에 다시 이어 쓴 것은 한 구간으로 합친다.
+    static List<long[]> slotSpans(Models.AppTotal slot, long hourStart, int index) {
+        long from = hourStart + index * SLOT_MS, to = from + SLOT_MS;
+        List<long[]> spans = new ArrayList<>();
+        for (Models.Session session : slot.sessions) {
+            long a = Math.max(from, session.start), b = Math.min(to, session.end);
+            if (b > a) spans.add(new long[]{a, b});
+        }
+        Collections.sort(spans, new Comparator<long[]>() {
+            public int compare(long[] x, long[] y) {
+                return Long.compare(x[0], y[0]);
+            }
+        });
+        List<long[]> out = new ArrayList<>();
+        for (long[] span : spans) {
+            if (!out.isEmpty() && span[0] - out.get(out.size() - 1)[1] <= 60000L) {
+                out.get(out.size() - 1)[1] = Math.max(out.get(out.size() - 1)[1], span[1]);
+            } else {
+                out.add(span);
+            }
+        }
+        return out;
+    }
+
+    // 시작 분은 내림, 끝 분은 올림. 다음 정각까지 이어지면 60으로 적는다.
+    static String minuteRange(long start, long end, long hourStart) {
+        long from = Math.max(0, Math.min(59, (start - hourStart) / 60000));
+        long to = Math.max(from + 1, Math.min(60, (end - hourStart + 59999) / 60000));
+        return String.format(Locale.KOREA, "%02d–%02d", from, to);
     }
 
     // 밝은 색(주황·노랑·초록 등) 위에는 어두운 글자, 어두운 색(빨강·파랑·남색·보라) 위에는 흰 글자.
