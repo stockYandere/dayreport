@@ -61,8 +61,7 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   List<Models.UseBlock> blocks=Models.blocks(total.sessions,Long.MIN_VALUE,Long.MAX_VALUE,Models.BLOCK_GAP);
   blockDialog(total.app.label,blocks,date+" · "+blocks.size()+"번 사용 · 총 "+duration(total.duration),null);
  }
- // 1분 미만은 초로 적는다. 짧게 스친 사용이 1분으로 부풀려 보이지 않게.
- static String duration(long ms){if(ms<60000)return Math.max(1,Math.round(ms/1000.0))+"초";long m=Math.round(ms/60000.0);return m>=60?(m/60)+"시간"+(m%60>0?" "+(m%60)+"분":""):m+"분";}
+ static String duration(long ms){return Models.durationText(ms);}
  static String range(java.text.SimpleDateFormat f,long start,long end){String a=f.format(new Date(start)),b=f.format(new Date(end));return a.equals(b)?a:a+"–"+b;}
  /* 한 줄: ● 14:03–14:21  18분. 여러 앱이면 아래 줄에 앱별 시간(많이 쓴 순, 3개까지). */
  void blockDialog(String title,List<Models.UseBlock> blocks,String note,String empty){

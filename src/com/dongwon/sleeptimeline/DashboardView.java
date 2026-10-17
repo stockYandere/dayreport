@@ -320,7 +320,7 @@ final class DashboardView extends View {
         float dp2 = dp + dp(36.0f);
         drawRoundRect(canvas, new RectF(f, dp2, f2, f4), dp(20.0f), CARD);
         drawText(canvas, this.dateTitleFormat.format(new Date(dayRecord.dayStart)) + " · 24시간", dp(16.0f) + f, dp(27.0f) + dp2, 15.0f, TEXT, true, Paint.Align.LEFT);
-        drawText(canvas, "0–60분 · 터치=상세", f2 - dp(16.0f), dp2 + dp(27.0f), 9.0f, MUTED, false, Paint.Align.RIGHT);
+        drawText(canvas, "10분 칸 · 터치=상세", f2 - dp(16.0f), dp2 + dp(27.0f), 9.0f, MUTED, false, Paint.Align.RIGHT);
         this.timelineRect.set(dp(14.0f) + f, dp2 + dp(42.0f), f2 - dp(14.0f), f4 - dp(34.0f));
         drawHourlyTimeline(canvas, dayRecord, this.timelineRect);
         drawTimelineLegend(canvas, dayRecord, f + dp(16.0f), f4 - dp(10.0f), f2 - dp(16.0f));
@@ -360,8 +360,7 @@ final class DashboardView extends View {
         drawTimelineScrollThumb(canvas, rectF);
     }
 
-    // 막대 하나 = 한 시간. 위쪽 끝이 정각, 아래쪽 끝이 다음 정각이다.
-    // 앱별 색 구간을 실제로 사용한 분 위치에 그리고, 칸이 충분하면 "14–32"처럼 사용한 분을 적는다.
+    // 막대 하나 = 한 시간. 위에서부터 00–10분, 10–20분 … 50–60분 칸 6개.
     private void drawHourlyBars(Canvas canvas, Models.DayRecord dayRecord, RectF area, float slot) {
         float top = area.top + dp(22.0f);
         float bottom = area.bottom - dp(40.0f);
@@ -380,9 +379,7 @@ final class DashboardView extends View {
             RectF bar = new RectF(center - barWidth / 2.0f, top, center + barWidth / 2.0f, bottom);
             drawRoundRect(canvas, bar, radius, -15262683);
             HourlyBucket bucket = hourlyBucket(dayRecord, hour);
-            if (!bucket.apps.isEmpty()) {
-                drawHourSegments(canvas, hourSegments(dayRecord, hour, bucket.packages), dayRecord.dayStart + hour * HOUR_MS, bar, radius);
-            }
+            drawTenMinuteSlots(canvas, tenMinuteSlots(dayRecord, hour), bar, radius);
             this.paint.setStyle(Paint.Style.STROKE);
             this.paint.setStrokeWidth(dp(current ? 2.5f : 1.0f));
             this.paint.setColor(current ? BLUE : bucket.apps.isEmpty() ? -13617082 : -10523779);
@@ -395,34 +392,34 @@ final class DashboardView extends View {
         }
     }
 
-    private void drawHourSegments(Canvas canvas, List<Models.Session> segments, long hourStart, RectF bar, float radius) {
-        float scale = bar.height() / HOUR_MS;
+    // 한 시간을 10분 칸 6개로 나누고, 칸마다 가장 많이 쓴 앱 하나만 칸 전체에 칠한다.
+    // 1분 단위 조각을 모두 그리면 난잡해서, 칸 안의 실제 위치 대신 "이 10분은 무엇을 했나"만 보여 준다.
+    private void drawTenMinuteSlots(Canvas canvas, Models.AppTotal[] slots, RectF bar, float radius) {
+        float cell = bar.height() / SLOTS_PER_HOUR;
         Path path = new Path();
         path.addRoundRect(bar, radius, radius, Path.Direction.CW);
         canvas.save();
         canvas.clipPath(path);
-        for (Models.Session segment : segments) {
-            float y1 = bar.top + (segment.start - hourStart) * scale;
-            float y2 = Math.max(y1 + dp(2.0f), bar.top + (segment.end - hourStart) * scale);
-            this.paint.setColor(segment.app.color);
-            canvas.drawRect(bar.left, y1, bar.right, y2, this.paint);
-            if (y1 > bar.top + dp(1.0f)) {
-                this.paint.setColor(-1726999267);
-                canvas.drawRect(bar.left, y1, bar.right, y1 + dp(0.8f), this.paint);
+        for (int i = 0; i < SLOTS_PER_HOUR; i++) {
+            if (slots[i] == null) {
+                continue;
             }
+            this.paint.setColor(slots[i].app.color);
+            canvas.drawRect(bar.left, bar.top + i * cell + dp(0.75f), bar.right, bar.top + (i + 1) * cell - dp(0.75f), this.paint);
         }
         canvas.restore();
-        for (Models.Session segment : segments) {
-            int ink = labelColor(segment.app.color);
-            float y1 = bar.top + (segment.start - hourStart) * scale;
-            float y2 = bar.top + (segment.end - hourStart) * scale;
-            String range = minuteRange(segment.start, segment.end, hourStart);
-            if (y2 - y1 >= dp(27.0f)) {
-                float middle = (y1 + y2) / 2.0f;
-                drawText(canvas, ellipsize(segment.app.label, 4), bar.centerX(), middle - dp(1.5f), 8.0f, ink, false, Paint.Align.CENTER);
-                drawText(canvas, range, bar.centerX(), middle + dp(9.0f), 8.5f, ink, true, Paint.Align.CENTER);
-            } else if (y2 - y1 >= dp(12.0f)) {
-                drawText(canvas, range, bar.centerX(), (y1 + y2) / 2.0f + dp(3.0f), 8.5f, ink, true, Paint.Align.CENTER);
+        for (int i = 0; i < SLOTS_PER_HOUR; i++) {
+            if (slots[i] == null) {
+                continue;
+            }
+            int ink = labelColor(slots[i].app.color);
+            float middle = bar.top + (i + 0.5f) * cell;
+            String used = Models.durationText(slots[i].duration);
+            if (cell >= dp(30.0f)) {
+                drawText(canvas, ellipsize(slots[i].app.label, 4), bar.centerX(), middle - dp(1.5f), 8.0f, ink, false, Paint.Align.CENTER);
+                drawText(canvas, used, bar.centerX(), middle + dp(9.0f), 8.5f, ink, true, Paint.Align.CENTER);
+            } else if (cell >= dp(13.0f)) {
+                drawText(canvas, used, bar.centerX(), middle + dp(3.0f), 8.5f, ink, true, Paint.Align.CENTER);
             }
         }
     }
@@ -433,44 +430,32 @@ final class DashboardView extends View {
         return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? BG : -1;
     }
 
-    // 시작 분은 내림, 끝 분은 올림. 다음 정각까지 이어지면 60으로 적는다.
-    static String minuteRange(long start, long end, long hourStart) {
-        long from = Math.max(0, Math.min(59, (start - hourStart) / 60000));
-        long to = Math.max(from + 1, Math.min(60, (end - hourStart + 59999) / 60000));
-        return String.format(Locale.KOREA, "%02d–%02d", from, to);
-    }
+    static final int SLOTS_PER_HOUR = 6;
+    static final long SLOT_MS = HOUR_MS / SLOTS_PER_HOUR;
+    // 칸 안에서 휴대폰을 쓴 시간이 이보다 짧으면 비워 둔다. 몇 초 스친 사용이 10분 칸을 차지하지 않게.
+    static final long MIN_SLOT_USE = 60000L;
 
-    // 표시 대상 앱의 사용을 이 시간 안으로 자르고, 같은 앱이 1분 안에 다시 이어지면 한 구간으로 합친다.
-    static List<Models.Session> hourSegments(Models.DayRecord dayRecord, int hour, Set<String> packages) {
-        long from = dayRecord.dayStart + hour * HOUR_MS;
-        long to = from + HOUR_MS;
-        List<Models.Session> clipped = new ArrayList<>();
-        for (Models.Session session : dayRecord.sessions) {
-            if (packages.contains(session.app.packageName) && session.start < to && session.end > from) {
-                clipped.add(new Models.Session(session.app, Math.max(from, session.start), Math.min(to, session.end)));
+    // 칸별 최다 사용 앱(그 칸 안에서 쓴 시간 포함). 사용이 없거나 너무 짧은 칸은 null.
+    static Models.AppTotal[] tenMinuteSlots(Models.DayRecord dayRecord, int hour) {
+        Models.AppTotal[] out = new Models.AppTotal[SLOTS_PER_HOUR];
+        long hourStart = dayRecord.dayStart + hour * HOUR_MS;
+        for (int i = 0; i < SLOTS_PER_HOUR; i++) {
+            long from = hourStart + i * SLOT_MS, to = from + SLOT_MS;
+            List<Models.Session> inSlot = new ArrayList<>();
+            for (Models.Session session : dayRecord.sessions) {
+                if (session.start < to && session.end > from) {
+                    inSlot.add(session);
+                }
             }
-        }
-        return mergeSessions(clipped, 60000L);
-    }
-
-    static List<Models.Session> mergeSessions(List<Models.Session> sessions, long joinGap) {
-        List<Models.Session> sorted = new ArrayList<>(sessions);
-        Collections.sort(sorted, new Comparator<Models.Session>() {
-            public int compare(Models.Session a, Models.Session b) {
-                return Long.compare(a.start, b.start);
-            }
-        });
-        List<Models.Session> out = new ArrayList<>();
-        Map<String, Integer> lastIndex = new LinkedHashMap<>();
-        for (Models.Session session : sorted) {
-            Integer index = lastIndex.get(session.app.packageName);
-            if (index != null && index == out.size() - 1 && session.start - out.get(index).end <= joinGap) {
-                Models.Session previous = out.get(index);
-                out.set(index, new Models.Session(previous.app, previous.start, Math.max(previous.end, session.end)));
+            if (Models.union(inSlot, from, to) < MIN_SLOT_USE) {
                 continue;
             }
-            lastIndex.put(session.app.packageName, out.size());
-            out.add(session);
+            for (List<Models.Session> app : Models.groupSessions(inSlot).values()) {
+                long used = Models.union(app, from, to);
+                if (out[i] == null || used > out[i].duration || (used == out[i].duration && app.get(0).app.label.compareToIgnoreCase(out[i].app.label) < 0)) {
+                    out[i] = new Models.AppTotal(app.get(0).app, used, app);
+                }
+            }
         }
         return out;
     }

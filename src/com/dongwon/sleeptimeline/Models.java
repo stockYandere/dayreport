@@ -129,6 +129,13 @@ final class Models {
         return out;
     }
 
+    // 1분 미만은 초로 적는다. 짧게 스친 사용이 1분으로 부풀려 보이지 않게.
+    static String durationText(long ms) {
+        if (ms < 60000) return Math.max(1, Math.round(ms / 1000.0)) + "초";
+        long m = Math.round(ms / 60000.0);
+        return m >= 60 ? (m / 60) + "시간" + (m % 60 > 0 ? " " + (m % 60) + "분" : "") : m + "분";
+    }
+
     // 겹치는 시간은 한 번만 센다.
     static long union(List<Session> sessions, long from, long to) {
         List<long[]> spans = new ArrayList<>();
