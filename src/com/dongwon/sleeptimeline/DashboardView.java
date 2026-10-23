@@ -75,6 +75,7 @@ final class DashboardView extends View {
     private final RectF secondNavRect;
     private final RectF thirdNavRect=new RectF();
     private final RectF fifthNavRect=new RectF();
+    private final RectF diaryNavRect=new RectF();
     private final List<RectF> appRowRects=new ArrayList<>();
     private final List<Models.AppTotal> appRowItems=new ArrayList<>();
     private final RectF sleepGapRect=new RectF();
@@ -828,9 +829,9 @@ final class DashboardView extends View {
     private void drawBottomNavigation(Canvas canvas,float top,float height){
         paint.setColor(0xff10131b);canvas.drawRect(0,top,getWidth(),top+height,paint);
         paint.setColor(0xff2a3244);canvas.drawRect(dp(12.0f),top,getWidth()-dp(12.0f),top+dp(1.0f),paint);
-        RectF[] rects={firstNavRect,fifthNavRect,secondNavRect,thirdNavRect};
-        String[] labels={"시간대","하루","앱별","수면"};
-        float left=dp(12.0f),gap=dp(5.0f),width=(getWidth()-dp(24.0f)-gap*3)/4;
+        RectF[] rects={firstNavRect,fifthNavRect,secondNavRect,thirdNavRect,diaryNavRect};
+        String[] labels={"시간대","하루","앱별","수면","일기"};
+        float left=dp(12.0f),gap=dp(5.0f),width=(getWidth()-dp(24.0f)-gap*4)/5;
         for(int n=0;n<rects.length;n++){rects[n].set(left,top,left+width,top+height);left+=width+gap;drawBottomItem(canvas,rects[n],labels[n],(n==0&&page==0)||(n==2&&page==1),true);}
     }
 
@@ -1002,6 +1003,7 @@ final class DashboardView extends View {
         int i;
         if(this.fifthNavRect.contains(f,f2)){this.actions.openWebPage("report");return;}
         if(this.thirdNavRect.contains(f,f2)){this.actions.openWebPage("sleep");return;}
+        if(this.diaryNavRect.contains(f,f2)){this.actions.openWebPage("diary");return;}
         if(this.page==0&&this.permissionGranted&&!this.loading&&this.sleepGapRect.contains(f,f2)&&selectedDay<days.size()){this.actions.showSleepCandidates(days.get(selectedDay).dayStart,gapStart,gapEnd);return;}
         if (this.refreshRect.contains(f, f2)) {
             this.actions.refreshData();

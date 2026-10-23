@@ -2,10 +2,10 @@ package com.dongwon.sleeptimeline;
 import android.app.*;import android.content.*;import android.graphics.Color;import android.net.Uri;import android.os.*;import android.provider.Settings;import android.view.*;import android.webkit.*;import android.widget.*;import java.io.*;import java.util.*;import java.util.concurrent.*;import org.json.*;
 public class MainActivity extends Activity implements DashboardView.Actions {
  static final String EXTRA_ROUTE="route";
- WebView web;Store store;TaskStore tasks;String exportText;DashboardView dashboard;UsageRepository repository;String pendingRoute;
+ WebView web;Store store;TaskStore tasks;DiaryStore diary;String exportText;DashboardView dashboard;UsageRepository repository;String pendingRoute;
  final ExecutorService executor=Executors.newSingleThreadExecutor();int generation;boolean webReady;List<Models.DayRecord> nativeDays=new ArrayList<Models.DayRecord>();
  public void onCreate(Bundle state){
-  super.onCreate(state);store=new Store(this);tasks=TaskStore.get(this);repository=new UsageRepository(this);pendingRoute=route(getIntent());
+  super.onCreate(state);store=new Store(this);tasks=TaskStore.get(this);diary=DiaryStore.get(this);repository=new UsageRepository(this);pendingRoute=route(getIntent());
   getWindow().setStatusBarColor(Color.rgb(9,10,16));getWindow().setNavigationBarColor(Color.rgb(9,10,16));
   getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
   if(Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(false);
@@ -25,6 +25,8 @@ public class MainActivity extends Activity implements DashboardView.Actions {
  }
  static String route(Intent i){String r=i==null?null:i.getStringExtra(EXTRA_ROUTE);return r;}
  protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String r=route(intent);if(r==null)return;if(!webReady){pendingRoute=r;dashboard.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);return;}dashboard.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);web.evaluateJavascript("openRoute("+JSONObject.quote(r)+")",null);}
+ // 쓰던 일기는 앱을 벗어나는 순간 저장한다(1초 자동 저장을 기다리지 않음).
+ protected void onPause(){if(web!=null&&webReady)web.evaluateJavascript("window.flushDiary&&flushDiary()",null);super.onPause();}
  protected void onResume(){super.onResume();if(dashboard!=null)refreshData();if(web!=null&&webReady)web.evaluateJavascript("window.refresh&&refresh()",null);}
  public void onBackPressed(){if(web.getVisibility()==View.VISIBLE)web.evaluateJavascript("window.back&&back()",null);else if(!dashboard.backToTimeline())finish();}
  protected void onDestroy(){generation++;executor.shutdownNow();if(web!=null){web.removeJavascriptInterface("Native");web.destroy();}if(store!=null)store.close();super.onDestroy();}
@@ -100,11 +102,15 @@ public class MainActivity extends Activity implements DashboardView.Actions {
    long s=-1,e=-1;for(Models.Session x:r.sessions){if(s<0){s=x.start;e=x.end;}else if(x.start<=e)e=Math.max(e,x.end);else{spans.put(new JSONArray().put(s).put(e));s=x.start;e=x.end;}}if(s>=0)spans.put(new JSONArray().put(s).put(e));
    o.put("available",true).put("total",r.uniqueDuration).put("first",r.firstUse).put("last",r.lastUse).put("apps",apps).put("spans",spans).put("appCount",r.totals.size());
   }else o.put("available",false).put("apps",apps).put("spans",spans);
-  return o.put("tasks",tasks.finished(start,end));
+  String key=new java.text.SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date(start));JSONObject entry=diary.get(key);
+  return o.put("tasks",tasks.finished(start,end)).put("diary",DiaryStore.preview(entry.getString("text"))).put("diaryLength",entry.getString("text").length());
  }
  public class Bridge {
   @JavascriptInterface public void dashboard(int page){showDashboard(page);}
   @JavascriptInterface public void dashboardAt(int page,long day){showDashboard(page,day);}
+  @JavascriptInterface public String diary(String day){try{return diary.get(day).put("ok",true).toString();}catch(Exception e){return error(e);}}
+  @JavascriptInterface public String saveDiary(String day,String text){try{long now=System.currentTimeMillis();diary.save(day,text,now);return new JSONObject().put("ok",true).put("updated",now).toString();}catch(Exception e){return error(e);}}
+  @JavascriptInterface public String diaryList(){try{return new JSONObject().put("ok",true).put("entries",diary.list()).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String dayReport(long day){try{return report(day).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String tasks(long from){try{long now=System.currentTimeMillis(),today=TaskStore.dayStart(now);return new JSONObject().put("ok",true).put("open",tasks.open()).put("finished",tasks.finished(TaskStore.dayStart(from),TaskStore.nextDay(today))).put("today",tasks.doneCount(today,TaskStore.nextDay(today))).put("now",now).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String addDone(String title,long time){try{tasks.addDone(title,time,System.currentTimeMillis());TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"한 일을 기록했어").text();}catch(Exception e){return error(e);}}
@@ -119,7 +125,7 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   @JavascriptInterface public void minimum(int min){getSharedPreferences("settings",0).edit().putInt("minimum",(int)(SleepLogic.MIN_CANDIDATE/60000)).apply();}
   @JavascriptInterface public void timer(long time){if(time>=0&&time<=System.currentTimeMillis())getSharedPreferences("settings",0).edit().putLong("timer",time).commit();}
   @JavascriptInterface public void permission(){runOnUiThread(new Runnable(){public void run(){openUsageAccessSettings();}});}
-  @JavascriptInterface public void export(){runOnUiThread(new Runnable(){public void run(){try{exportText=store.backup().put("tasks",tasks.all()).toString(2);Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE,"dayreport-"+new java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.US).format(new java.util.Date())+".json");startActivityForResult(i,10);}catch(Exception e){notifyUI("백업 파일을 만들지 못했어.");}}});}
+  @JavascriptInterface public void export(){runOnUiThread(new Runnable(){public void run(){try{exportText=store.backup().put("tasks",tasks.all()).put("diary",diary.all()).toString(2);Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE,"dayreport-"+new java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.US).format(new java.util.Date())+".json");startActivityForResult(i,10);}catch(Exception e){notifyUI("백업 파일을 만들지 못했어.");}}});}
   @JavascriptInterface public void restore(){runOnUiThread(new Runnable(){public void run(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,11);}});}
   @JavascriptInterface public void exit(){runOnUiThread(new Runnable(){public void run(){finish();}});}
  }
@@ -133,7 +139,7 @@ public class MainActivity extends Activity implements DashboardView.Actions {
      OutputStream stream=getContentResolver().openOutputStream(uri,"wt");
      if(stream==null)throw new IOException();
      try { stream.write(exportText.getBytes("UTF-8")); } finally { stream.close(); }
-     notifyUI("수면·할 일 백업을 저장했어.");
+     notifyUI("수면·할 일·일기 백업을 저장했어.");
     } else if(action==11) {
      InputStream stream=getContentResolver().openInputStream(uri);
      if(stream==null)throw new IOException();
@@ -145,14 +151,14 @@ public class MainActivity extends Activity implements DashboardView.Actions {
       }
      } finally {stream.close();}
      final String input=bytes.toString("UTF-8");
-     JSONObject parsed=new JSONObject(input);final int count=parsed.getJSONArray("records").length();final JSONArray taskRows=parsed.optJSONArray("tasks");
+     JSONObject parsed=new JSONObject(input);final int count=parsed.getJSONArray("records").length();final JSONArray taskRows=parsed.optJSONArray("tasks");final JSONArray diaryRows=parsed.optJSONArray("diary");
      runOnUiThread(new Runnable(){public void run(){
       new AlertDialog.Builder(MainActivity.this).setTitle("백업 복원")
-       .setMessage("수면 "+count+"개"+(taskRows==null?"":", 할 일 "+taskRows.length()+"개")+"를 현재 기록에 추가할게. 같은 기록은 건너뛰고, 수면 시간이 겹치면 복원을 중단해.")
+       .setMessage("수면 "+count+"개"+(taskRows==null?"":", 할 일 "+taskRows.length()+"개")+(diaryRows==null?"":", 일기 "+diaryRows.length()+"일")+"를 현재 기록에 추가할게. 같은 기록과 이미 일기가 있는 날은 건너뛰고, 수면 시간이 겹치면 복원을 중단해.")
        .setNegativeButton("취소",null)
        .setPositiveButton("복원",new DialogInterface.OnClickListener(){public void onClick(DialogInterface dialog,int which){
         new Thread(new Runnable(){public void run(){
-         try {int sleep=store.restore(input);int done=taskRows==null?0:tasks.restore(taskRows,System.currentTimeMillis());TodoWidget.refreshAll(MainActivity.this);notifyUI("수면 "+sleep+"개"+(taskRows==null?"":", 할 일 "+done+"개")+"를 복원했어.");}
+         try {int sleep=store.restore(input);int done=taskRows==null?0:tasks.restore(taskRows,System.currentTimeMillis());int days=diaryRows==null?0:diary.restore(diaryRows);TodoWidget.refreshAll(MainActivity.this);notifyUI("수면 "+sleep+"개"+(taskRows==null?"":", 할 일 "+done+"개")+(diaryRows==null?"":", 일기 "+days+"일")+"를 복원했어.");}
          catch(Exception e){notifyUI(e.getMessage());}
         }}).start();
        }}).show();

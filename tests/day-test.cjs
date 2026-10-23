@@ -33,7 +33,7 @@ async function layout(p,label,size){const r=await p.evaluate(()=>{let c=document
  // 동작 검사
  const p=await browser.newPage({viewport:{width:393,height:825},timezoneId:'Asia/Seoul'});let errors=[];p.on('pageerror',e=>errors.push(e.message));
  await p.addInitScript(mock);await p.goto('file://'+path.resolve(__dirname,'../assets/index.html'));await p.evaluate(()=>{tasks.find(t=>t.id===1).state='done';tasks.find(t=>t.id===1).finished=Date.now()-60000;tasks.find(t=>t.id===2).state='skipped';tasks.find(t=>t.id===2).finished=Date.now()-30000;startApp('report')});await p.waitForTimeout(80);
- assert.equal(await p.locator('nav button').count(),4,'4 tabs');assert.deepEqual(await p.locator('nav button').allTextContents(),['시간대','하루','앱별','수면']);
+ assert.equal(await p.locator('nav button').count(),5,'5 tabs');assert.deepEqual(await p.locator('nav button').allTextContents(),['시간대','하루','앱별','수면','일기']);
  assert.equal(await p.locator('.task-line').count(),3,'report lists done + skipped');assert.equal(await p.locator('.task-line.skipped').count(),1);assert.equal(await p.locator('.day-tick').count(),2,'done ticks on day flow');
  assert.match(await p.locator('.sleep-tile').textContent(),/8시간 0분/);assert.match(await p.locator('.use-tile').textContent(),/3시간 12분/);assert.match(await p.locator('.done-tile').textContent(),/2개/);
  await p.evaluate(()=>openRoute('todo'));assert.equal(await p.locator('#title').textContent(),'하루','old todo route falls back to report');
@@ -45,5 +45,5 @@ async function layout(p,label,size){const r=await p.evaluate(()=>{let c=document
  await p.evaluate(()=>{openRoute('report');back()});assert.deepEqual(await p.evaluate(()=>calls.pop().slice(0,2)),['dashboardAt',0],'back returns to timeline');
  await p.evaluate(()=>{openRoute('sleep');back()});assert.deepEqual(await p.evaluate(()=>calls.pop()),['dashboard',0]);
  assert.deepEqual(errors,[]);await p.close();await browser.close();
- console.log(`PASS: ${count} report layouts, 4 tabs, todo screens removed, reopen/direct record, report tiles & day flow, day-linked timeline, back to timeline`);
+ console.log(`PASS: ${count} report layouts, 5 tabs, todo screens removed, reopen/direct record, report tiles & day flow, day-linked timeline, back to timeline`);
 })().catch(e=>{console.error(e);process.exit(1)});

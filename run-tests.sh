@@ -10,4 +10,4 @@ java -jar "$DIR/toolchain/ecj.jar" -nowarn -8 -cp "$JAR" -d "$OUT" "$DIR"/src/co
 for t in SleepLogicTest UnusedGapsTest RestoredUsageTest HourSegmentsTest UseBlocksTest; do java -cp "$OUT:$JAR" com.dongwon.sleeptimeline.$t; done
 export TZ=Asia/Seoul NODE_PATH=${NODE_PATH:-/opt/node-tools/node_modules}
 mkdir -p "$DIR/output"
-for t in logic-test records-update-test ui-test day-test; do node "$DIR/tests/$t.cjs"; done
+for t in logic-test records-update-test ui-test day-test diary-test; do node "$DIR/tests/$t.cjs"; done

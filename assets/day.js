@@ -11,7 +11,7 @@ function loadTasks(){let t=call('tasks',Logic.shift(Logic.day(Date.now()),-29));
 function reportShift(n){let next=Logic.shift(reportDay,n);if(next>Logic.day(Date.now()))return;reportDay=next;reportPage=0;render()}
 function reportToday(){reportDay=Logic.day(Date.now());reportPage=0;render()}
 function lane(label,cls,items){return `<div class="day-lane"><span class="day-lane-label">${label}</span><div class="day-track">${items}</div></div>`}
-function reportLimit(){return Math.max(1,Math.min(12,Math.floor((innerHeight-(innerHeight<600?420:470))/38)))}
+function reportLimit(){return Math.max(1,Math.min(12,Math.floor((innerHeight-(innerHeight<600?455:510))/38)))}
 function renderReport(){
  const day=reportDay,r=reportData(day)||{},sleep=Day.sleepFor(data.records,day),tasks=[...(r.tasks||[])].sort((a,b)=>a.finished-b.finished),done=tasks.filter(t=>t.state==='done'),skipped=tasks.length-done.length,isToday=day===Logic.day(Date.now());
  const sleepItems=Logic.segments(data.records,day).map(s=>`<span class="day-seg sleep ${s.kind==='nap'?'nap':''} ${s.state==='candidate'?'candidate':''}" style="left:${s.left}%;width:${s.width}%"></span>`).join('');
@@ -25,6 +25,7 @@ function renderReport(){
  <div class="day-flow"><div class="axis day-axis"><span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>24시</span></div>${lane('수면','sleep',sleepItems)}${lane('사용','use',useItems)}${lane('한 일','done',doneItems)}</div>
  <div class="tiles"><button class="tile sleep-tile" onclick="anchor=reportDay;selected=reportDay;openRoute('pattern')"><span>수면</span>${sleepTile}</button><button class="tile use-tile" onclick="goDashboard(0)"><span>앱 사용</span>${usage}</button><div class="tile done-tile"><span>한 일</span><b>${done.length}개</b><small>${skipped?'안 함 '+skipped+'개':isToday?'남은 할 일 '+taskData.open.length+'개':'&nbsp;'}</small></div></div>
  ${apps?`<div class="app-chips">${apps}</div>`:''}
+ <button class="diary-line" onclick="openDiary(${day})"><span class="diary-tag">일기</span>${r.diary?`<span class="diary-preview">${esc(r.diary)}</span><span class="muted">${r.diaryLength}자</span>`:'<span class="muted grow">이 날 일기 쓰기 ›</span>'}</button>
  <div class="day-done"><div class="row between"><b>한 일</b><button class="small olive" onclick="openDoneEditor(${day})">＋ 한 일 기록</button></div><div class="list done-list">${tasks.length?tasks.slice(reportPage*limit,(reportPage+1)*limit).map(t=>taskLine(t)).join(''):`<div class="empty">${isToday?'위젯에서 O로 완료하거나<br>한 일을 바로 기록해 줘.':'이 날 기록한 일이 없어.'}</div>`}</div>${total>1?pager(reportPage,total,'report'):''}</div>`)
 }
 function taskLine(t){return `<div class="task-line ${t.state==='skipped'?'skipped':''}" role="button" tabindex="0" onclick="openTaskEditor(${t.id})"><span class="task-time">${Logic.time(t.finished)}</span><span class="task-title">${esc(t.title)}</span>${t.state==='skipped'?'<span class="tag">안 함</span>':''}</div>`}
