@@ -27,7 +27,10 @@ public class MainActivity extends Activity implements DashboardView.Actions {
  protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String r=route(intent);if(r==null)return;if(!webReady){pendingRoute=r;dashboard.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);return;}dashboard.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);web.evaluateJavascript("openRoute("+JSONObject.quote(r)+")",null);}
  // 쓰던 일기는 앱을 벗어나는 순간 저장한다(1초 자동 저장을 기다리지 않음).
  protected void onPause(){if(web!=null&&webReady)web.evaluateJavascript("window.flushDiary&&flushDiary()",null);super.onPause();}
- protected void onResume(){super.onResume();if(dashboard!=null)refreshData();if(web!=null&&webReady)web.evaluateJavascript("window.refresh&&refresh()",null);}
+ // 잠금 화면 버튼을 쓰려면 Android 13부터 알림 권한이 필요하다. 거절해도 앱·위젯 버튼은 동작한다.
+ void askNotificationPermission(){if(Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},12);}
+ public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);SleepRecorder.update(this);}
+ protected void onResume(){super.onResume();SleepRecorder.update(this);if(dashboard!=null)refreshData();if(web!=null&&webReady)web.evaluateJavascript("window.refresh&&refresh()",null);}
  public void onBackPressed(){if(web.getVisibility()==View.VISIBLE)web.evaluateJavascript("window.back&&back()",null);else if(!dashboard.backToTimeline())finish();}
  protected void onDestroy(){generation++;executor.shutdownNow();if(web!=null){web.removeJavascriptInterface("Native");web.destroy();}if(store!=null)store.close();super.onDestroy();}
  public void openUsageAccessSettings(){try{startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS,Uri.parse("package:"+getPackageName())));}catch(Exception e){startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));}}
@@ -109,6 +112,9 @@ public class MainActivity extends Activity implements DashboardView.Actions {
  public class Bridge {
   @JavascriptInterface public void dashboard(int page){showDashboard(page);}
   @JavascriptInterface public void dashboardAt(int page,long day){showDashboard(page,day);}
+  @JavascriptInterface public String recorder(){try{return SleepRecorder.stateJson(MainActivity.this).put("ok",true).toString();}catch(Exception e){return error(e);}}
+  @JavascriptInterface public String recorderAction(String action){try{if("start".equals(action))runOnUiThread(new Runnable(){public void run(){askNotificationPermission();}});String message=SleepRecorder.perform(MainActivity.this,action);return SleepRecorder.stateJson(MainActivity.this).put("ok",true).put("message",message).toString();}catch(Exception e){return error(e);}}
+  @JavascriptInterface public String recorderDropUnsaved(long start,long end){try{SleepRecorder.dropUnsaved(MainActivity.this,start,end);return SleepRecorder.stateJson(MainActivity.this).put("ok",true).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String diary(String day){try{return diary.get(day).put("ok",true).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String saveDiary(String day,String text){try{long now=System.currentTimeMillis();diary.save(day,text,now);return new JSONObject().put("ok",true).put("updated",now).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String diaryList(){try{return new JSONObject().put("ok",true).put("entries",diary.list()).toString();}catch(Exception e){return error(e);}}
@@ -119,7 +125,7 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   @JavascriptInterface public String editTask(long id,String title,long finished){try{tasks.edit(id,title,finished,System.currentTimeMillis());TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"저장했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String deleteTask(long id){try{tasks.remove(id);TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"삭제했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public void closeNativeEditor(){showDashboard(-1);}
-  @JavascriptInterface public String refresh(){try{int events=UsageReader.capture(MainActivity.this,true);return new JSONObject().put("ok",true).put("permission",UsageReader.allowed(MainActivity.this)).put("records",store.all()).put("minimum",SleepLogic.MIN_CANDIDATE/60000).put("timer",getSharedPreferences("settings",0).getLong("timer",0)).put("events",events).put("now",System.currentTimeMillis()).toString();}catch(Exception e){return error(e);}}
+  @JavascriptInterface public String refresh(){try{int events=UsageReader.capture(MainActivity.this,true);return new JSONObject().put("ok",true).put("permission",UsageReader.allowed(MainActivity.this)).put("records",store.all()).put("minimum",SleepLogic.MIN_CANDIDATE/60000).put("recorder",SleepRecorder.stateJson(MainActivity.this)).put("events",events).put("now",System.currentTimeMillis()).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String usage(long date){try{return UsageReader.usage(MainActivity.this,date).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String save(String data){try{store.save(new JSONObject(data));return new JSONObjectResult(true,"저장했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String remove(long id){try{store.remove(id);return new JSONObjectResult(true,"처리했어").text();}catch(Exception e){return error(e);}}

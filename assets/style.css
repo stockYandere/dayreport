@@ -43,3 +43,8 @@ button.olive{background:var(--olive);border-color:var(--olive);color:#fff;font-w
 .diary-row{cursor:pointer}.diary-date{width:92px;flex-shrink:0;color:var(--muted)}
 .diary-line{flex-shrink:0;display:flex;align-items:center;gap:8px;min-height:34px;padding:4px 10px;border-radius:10px;text-align:left;font-size:13px;width:100%}.diary-tag{font-size:11px;color:#f0b6d4;border:1px solid #6b3f57;border-radius:5px;padding:1px 6px;flex-shrink:0}.diary-preview{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-height:470px){.diary-line{min-height:30px;padding:2px 8px}}
+
+/* 3.5 수면 기록 버튼 */
+.recorder{display:flex;flex-direction:column;gap:7px;padding:9px 10px;border:1px solid #4b426d;border-radius:10px;background:#1d1f33}.recorder.paused{border-color:var(--line);background:transparent}.recorder button{min-height:36px;padding:4px 6px}#recClock{color:var(--sleep);font-size:14px}
+@media(max-height:600px){.recorder{padding:5px 7px;gap:4px}.recorder button{min-height:30px}.unsaved{padding:5px 8px}.unsaved .unsaved-range{display:none}.unsaved button{min-height:28px}.has-recorder main>.muted{display:none}}
+@media(max-height:470px){.has-recorder .summary{display:none}}
