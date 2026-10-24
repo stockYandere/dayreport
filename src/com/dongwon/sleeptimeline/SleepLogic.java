@@ -26,17 +26,15 @@ public final class SleepLogic {
  }
  // 깨어 있었다는 증거: 앱 화면 사용(이 앱 포함)과 잠금 해제(18).
  // ignore: 시스템 UI(알림으로 켜진 잠금 화면), 홈 화면처럼 사용으로 보지 않는 패키지.
- // awakeNow: 지금 이 앱을 보고 있으면 지금 이 순간도 깨어 있는 시점으로 넣어 진행 중인 미사용 구간을 닫는다.
- public static List<Gap> awakeSpans(List<Event> events,long from,long to,boolean awakeNow,Set<String> ignore){
+ public static List<Gap> awakeSpans(List<Event> events,long from,long to,Set<String> ignore){
   List<Event> use=new ArrayList<Event>();List<Gap> out=new ArrayList<Gap>();
   for(Event e:events){if(e.type==18&&e.time>=from&&e.time<=to)out.add(new Gap(e.time,e.time+1));if((e.type==1||e.type==2)&&ignore.contains(e.pkg))continue;use.add(e);}
   for(Session s:sessions(use,from,to))if(s.end>s.start)out.add(new Gap(s.start,s.end));
-  if(awakeNow)out.add(new Gap(to,to+1));
   return out;
  }
- public static final long WAKE_JOIN=10L*60000,SHORT_WAKE=5L*60000,QUIET_AROUND=3600000L;
- // 사용을 10분 간격 안에서 한 덩어리로 묶고, 실제 사용 5분 이하인 덩어리가 앞뒤 1시간 이상 조용한 사이에 끼어 있으면
- // 자다가 잠깐 본 것으로 보고 없앤다. 맨 처음·마지막 덩어리는 구간의 끝을 정하므로 남긴다.
+ public static final long WAKE_JOIN=10L*60000,SHORT_WAKE=5L*60000;
+ // 사용을 10분 간격 안에서 한 덩어리로 묶고, 실제 사용이 5분 이하인 덩어리는 위치와 상관없이 모두 없앤다.
+ // 잠깐 화면을 켜거나 자다 깨서 확인한 것은 깨어 있던 것으로 보지 않는다.
  public static List<Gap> withoutBriefWakes(List<Gap> spans){
   List<Gap> sorted=new ArrayList<Gap>(spans);Collections.sort(sorted,new Comparator<Gap>(){public int compare(Gap a,Gap b){return Long.compare(a.start,b.start);}});
   List<long[]> clusters=new ArrayList<long[]>();// start, end, active
@@ -50,12 +48,12 @@ public final class SleepLogic {
   if(s>=0){active+=runE-runS;clusters.add(new long[]{s,e,active});}
   List<Gap> out=new ArrayList<Gap>();
   for(int i=0;i<clusters.size();i++){long[] c=clusters.get(i);
-   boolean brief=i>0&&i<clusters.size()-1&&c[2]<=SHORT_WAKE&&c[0]-clusters.get(i-1)[1]>=QUIET_AROUND&&clusters.get(i+1)[0]-c[1]>=QUIET_AROUND;
-   if(!brief)out.add(new Gap(c[0],c[1]));}
+   if(c[2]>SHORT_WAKE)out.add(new Gap(c[0],c[1]));}
   return out;
  }
  // 4시간 이상 휴대폰을 쓰지 않은 구간. 낮·밤, 날짜 경계와 상관없이 양쪽 끝이 관측된 것만.
- public static List<Gap> awakeGaps(List<Event> events,long from,long now,boolean awakeNow,Set<String> ignore){List<Gap> out=new ArrayList<Gap>();for(Gap g:unusedGaps(withoutBriefWakes(awakeSpans(events,from,now,awakeNow,ignore)),0,Long.MAX_VALUE,MIN_CANDIDATE))if(g.end<=now)out.add(g);return out;}
+ // awakeNow: 지금 이 앱을 보고 있으면 지금 이 순간은 짧아도 깨어 있는 시점(기상)으로 넣어 진행 중인 미사용 구간을 닫는다.
+ public static List<Gap> awakeGaps(List<Event> events,long from,long now,boolean awakeNow,Set<String> ignore){List<Gap> awake=withoutBriefWakes(awakeSpans(events,from,now,ignore));if(awakeNow)awake.add(new Gap(now,now+1));List<Gap> out=new ArrayList<Gap>();for(Gap g:unusedGaps(awake,0,Long.MAX_VALUE,MIN_CANDIDATE))if(g.end<=now)out.add(g);return out;}
  public static boolean valid(long start,long end,long now){return start>0&&end>start&&end-start<=24L*3600000&&end<=now+60000;}
  public static class Session {public long start,end; public String pkg;public Session(long s,long e,String p){start=s;end=e;pkg=p;} }
  public static List<Session> sessions(List<Event> events,long start,long end){
