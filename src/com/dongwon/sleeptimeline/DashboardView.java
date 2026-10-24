@@ -1090,19 +1090,29 @@ final class DashboardView extends View {
     boolean backToTimeline(){if(page!=0){page=0;invalidate();return true;}return false;}
     void setSleepRecords(org.json.JSONArray records){sleepRecords=records;invalidate();}
     private boolean hasSleepRecord(long start,long end){for(int n=0;n<sleepRecords.length();n++){org.json.JSONObject r=sleepRecords.optJSONObject(n);if(r!=null&&"confirmed".equals(r.optString("state"))&&r.optLong("start")<end&&r.optLong("end")>start)return true;}return false;}
+    private List<SleepLogic.Gap> unusedGaps=new ArrayList<>();
+    void setUnusedGaps(List<SleepLogic.Gap> gaps){unusedGaps=gaps;invalidate();}
+    // 선택한 날짜와 겹치는 4시간 이상 미사용 구간 중 가장 최근 것. 없으면 전날 마지막 사용 → 첫 사용.
+    private List<SleepLogic.Gap> gapsFor(Models.DayRecord day){
+        Calendar c=Calendar.getInstance();c.setTimeInMillis(day.dayStart);c.add(Calendar.DATE,1);long next=c.getTimeInMillis();
+        List<SleepLogic.Gap> out=new ArrayList<>();for(SleepLogic.Gap g:unusedGaps)if(g.end>day.dayStart&&g.start<next)out.add(g);
+        Collections.sort(out,new Comparator<SleepLogic.Gap>(){public int compare(SleepLogic.Gap a,SleepLogic.Gap b){return Long.compare(b.end,a.end);}});
+        return out;
+    }
     private long[] unusedGap(Models.DayRecord dayRecord){
+        List<SleepLogic.Gap> gaps=gapsFor(dayRecord);if(!gaps.isEmpty())return new long[]{gaps.get(0).start,gaps.get(0).end};
         if(selectedDay>0&&selectedDay<days.size()){Models.DayRecord before=days.get(selectedDay-1);if(before.lastUse>0&&dayRecord.firstUse>before.lastUse)return new long[]{before.lastUse,dayRecord.firstUse};}
         return new long[]{-1,-1};
     }
 
     private String buildUnusedNote(Models.DayRecord dayRecord) {
+        List<SleepLogic.Gap> gaps=gapsFor(dayRecord);
+        if(!gaps.isEmpty()){SleepLogic.Gap g=gaps.get(0);return "미사용  "+timeFormat.format(new Date(g.start))+" → "+timeFormat.format(new Date(g.end))+"  ·  "+formatDuration(g.end-g.start)+(gaps.size()>1?"  외 "+(gaps.size()-1)+"개":"");}
         if (this.selectedDay > 0 && this.selectedDay < this.days.size()) {
             Models.DayRecord dayRecord2 = this.days.get(this.selectedDay - 1);
             if (dayRecord2.lastUse > 0 && dayRecord.firstUse > dayRecord2.lastUse) {
-                long j = dayRecord.firstUse - dayRecord2.lastUse;
-                return "미사용  " + this.timeFormat.format(new Date(dayRecord2.lastUse)) + " → " + this.timeFormat.format(new Date(dayRecord.firstUse)) + "  ·  " + formatDuration(j);
+                return "미사용  " + this.timeFormat.format(new Date(dayRecord2.lastUse)) + " → " + this.timeFormat.format(new Date(dayRecord.firstUse)) + "  ·  " + formatDuration(dayRecord.firstUse - dayRecord2.lastUse);
             }
-            return "미사용 구간  —";
         }
         return "미사용 구간  —";
     }

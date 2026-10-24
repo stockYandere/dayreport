@@ -3,7 +3,7 @@ import android.app.*;import android.content.*;import android.graphics.Color;impo
 public class MainActivity extends Activity implements DashboardView.Actions {
  static final String EXTRA_ROUTE="route";
  WebView web;Store store;TaskStore tasks;DiaryStore diary;String exportText;DashboardView dashboard;UsageRepository repository;String pendingRoute;
- final ExecutorService executor=Executors.newSingleThreadExecutor();int generation;boolean webReady;List<Models.DayRecord> nativeDays=new ArrayList<Models.DayRecord>();
+ final ExecutorService executor=Executors.newSingleThreadExecutor();int generation;boolean webReady;List<Models.DayRecord> nativeDays=new ArrayList<Models.DayRecord>();List<SleepLogic.Gap> unusedGaps=new ArrayList<SleepLogic.Gap>();
  public void onCreate(Bundle state){
   super.onCreate(state);store=new Store(this);tasks=TaskStore.get(this);diary=DiaryStore.get(this);repository=new UsageRepository(this);pendingRoute=route(getIntent());
   getWindow().setStatusBarColor(Color.rgb(9,10,16));getWindow().setNavigationBarColor(Color.rgb(9,10,16));
@@ -36,16 +36,17 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   if(!UsageReader.allowed(this))return;
   final int token=++generation;dashboard.setLoading(true);
   executor.execute(new Runnable(){public void run(){try{
-   final List<Models.DayRecord> days=repository.loadSevenDays();final JSONArray records=store.all();
-   runOnUiThread(new Runnable(){public void run(){if(token!=generation||isDestroyed())return;nativeDays=days;dashboard.setData(days);dashboard.setSleepRecords(records);}});
+   final List<Models.DayRecord> days=repository.loadSevenDays();final List<SleepLogic.Gap> gaps=UsageReader.awakeGaps(MainActivity.this,true);final JSONArray records=store.all();
+   runOnUiThread(new Runnable(){public void run(){if(token!=generation||isDestroyed())return;nativeDays=days;unusedGaps=gaps;dashboard.setUnusedGaps(gaps);dashboard.setData(days);dashboard.setSleepRecords(records);}});
   }catch(final Exception e){runOnUiThread(new Runnable(){public void run(){if(token!=generation||isDestroyed())return;dashboard.setError("기록을 읽지 못했어. 사용정보 접근을 확인한 뒤 새로고침해 줘.");}});}}});
  }
  public void openWebPage(String tab){if(!webReady)return;dashboard.setVisibility(View.GONE);web.setVisibility(View.VISIBLE);web.evaluateJavascript("openRoute("+JSONObject.quote(tab)+")",null);}
  public void showSleepCandidates(long day,long start,long end){
   if(!webReady)return;
-  List<SleepLogic.Gap> use=new ArrayList<SleepLogic.Gap>();for(Models.DayRecord row:nativeDays)for(Models.Session session:row.sessions)use.add(new SleepLogic.Gap(session.start,session.end));
-  Calendar c=Calendar.getInstance();c.setTimeInMillis(day);c.add(Calendar.DATE,1);
-  List<SleepLogic.Gap> gaps=SleepLogic.unusedGaps(use,day,c.getTimeInMillis(),SleepLogic.MIN_CANDIDATE);
+  // 선택한 날짜와 겹치는 4시간 이상 미사용 구간(전날에서 이어지는 밤, 당일 낮잠 모두). 최근 순.
+  Calendar c=Calendar.getInstance();c.setTimeInMillis(day);c.add(Calendar.DATE,1);long next=c.getTimeInMillis();
+  List<SleepLogic.Gap> gaps=new ArrayList<SleepLogic.Gap>();for(SleepLogic.Gap g:unusedGaps)if(g.end>day&&g.start<next)gaps.add(g);
+  Collections.sort(gaps,new Comparator<SleepLogic.Gap>(){public int compare(SleepLogic.Gap a,SleepLogic.Gap b){return Long.compare(b.end,a.end);}});
   JSONArray items=new JSONArray();try{for(SleepLogic.Gap gap:gaps)if(!store.isDismissed(gap.start,gap.end))items.put(new JSONObject().put("start",gap.start).put("end",gap.end));}catch(Exception ignored){}
   web.setVisibility(View.VISIBLE);web.evaluateJavascript("openNativeCandidates("+day+","+items.toString()+")",null);
  }
@@ -118,7 +119,7 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   @JavascriptInterface public String editTask(long id,String title,long finished){try{tasks.edit(id,title,finished,System.currentTimeMillis());TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"저장했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String deleteTask(long id){try{tasks.remove(id);TodoWidget.refreshAll(MainActivity.this);return new JSONObjectResult(true,"삭제했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public void closeNativeEditor(){showDashboard(-1);}
-  @JavascriptInterface public String refresh(){try{int events=UsageReader.capture(MainActivity.this);return new JSONObject().put("ok",true).put("permission",UsageReader.allowed(MainActivity.this)).put("records",store.all()).put("minimum",SleepLogic.MIN_CANDIDATE/60000).put("timer",getSharedPreferences("settings",0).getLong("timer",0)).put("events",events).put("now",System.currentTimeMillis()).toString();}catch(Exception e){return error(e);}}
+  @JavascriptInterface public String refresh(){try{int events=UsageReader.capture(MainActivity.this,true);return new JSONObject().put("ok",true).put("permission",UsageReader.allowed(MainActivity.this)).put("records",store.all()).put("minimum",SleepLogic.MIN_CANDIDATE/60000).put("timer",getSharedPreferences("settings",0).getLong("timer",0)).put("events",events).put("now",System.currentTimeMillis()).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String usage(long date){try{return UsageReader.usage(MainActivity.this,date).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String save(String data){try{store.save(new JSONObject(data));return new JSONObjectResult(true,"저장했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String remove(long id){try{store.remove(id);return new JSONObjectResult(true,"처리했어").text();}catch(Exception e){return error(e);}}

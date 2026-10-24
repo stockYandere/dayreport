@@ -24,6 +24,18 @@ public final class SleepLogic {
   for(Gap p:sorted){if(last<0){last=p.end;continue;}if(p.start>last){long span=p.start-last;if(span>=minimum&&span<=24L*3600000&&p.start>dayStart&&last<dayEnd)out.add(new Gap(last,p.start));}last=Math.max(last,p.end);}
   Collections.sort(out,new Comparator<Gap>(){public int compare(Gap a,Gap b){return Long.compare(b.end,a.end);}});return out;
  }
+ // 깨어 있었다는 증거: 앱 화면 사용(홈 화면·이 앱 포함)과 잠금 해제(18).
+ // 시스템 UI(잠금 화면·알림창)는 알림으로 화면이 잠깐 켜진 것일 수 있어 제외한다.
+ // awakeNow: 지금 이 앱을 보고 있으면 지금 이 순간도 깨어 있는 시점으로 넣어 진행 중인 미사용 구간을 닫는다.
+ public static List<Gap> awakeSpans(List<Event> events,long from,long to,boolean awakeNow){
+  List<Event> use=new ArrayList<Event>();List<Gap> out=new ArrayList<Gap>();
+  for(Event e:events){if(e.type==18&&e.time>=from&&e.time<=to)out.add(new Gap(e.time,e.time+1));if((e.type==1||e.type==2)&&(e.pkg.equals("com.android.systemui")||e.pkg.equals("android")))continue;use.add(e);}
+  for(Session s:sessions(use,from,to))if(s.end>s.start)out.add(new Gap(s.start,s.end));
+  if(awakeNow)out.add(new Gap(to,to+1));
+  return out;
+ }
+ // 4시간 이상 휴대폰을 쓰지 않은 구간. 낮·밤, 날짜 경계와 상관없이 양쪽 끝이 관측된 것만.
+ public static List<Gap> awakeGaps(List<Event> events,long from,long now,boolean awakeNow){List<Gap> out=new ArrayList<Gap>();for(Gap g:unusedGaps(awakeSpans(events,from,now,awakeNow),0,Long.MAX_VALUE,MIN_CANDIDATE))if(g.end<=now)out.add(g);return out;}
  public static boolean valid(long start,long end,long now){return start>0&&end>start&&end-start<=24L*3600000&&end<=now+60000;}
  public static class Session {public long start,end; public String pkg;public Session(long s,long e,String p){start=s;end=e;pkg=p;} }
  public static List<Session> sessions(List<Event> events,long start,long end){
