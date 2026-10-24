@@ -25,6 +25,6 @@ PY
 if [ ! -f "$TASK_DIR/signing.jks" ]; then
  /usr/lib/jvm/java-17-openjdk-amd64/bin/keytool -genkeypair -keystore "$TASK_DIR/signing.jks" -storepass sleep-timeline-local -keypass sleep-timeline-local -alias sleeptimeline -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=dayreport'
 fi
-"$BUILD_DIR/apksigner" sign --ks "$TASK_DIR/signing.jks" --ks-pass pass:sleep-timeline-local --key-pass pass:sleep-timeline-local --out "$TASK_DIR/output/v3.4.1-dayreport.apk" "$TASK_DIR/aligned.apk"
-"$BUILD_DIR/apksigner" verify --verbose "$TASK_DIR/output/v3.4.1-dayreport.apk"
-"$BUILD_DIR/aapt" dump badging "$TASK_DIR/output/v3.4.1-dayreport.apk"
+"$BUILD_DIR/apksigner" sign --ks "$TASK_DIR/signing.jks" --ks-pass pass:sleep-timeline-local --key-pass pass:sleep-timeline-local --out "$TASK_DIR/output/v3.4.2-dayreport.apk" "$TASK_DIR/aligned.apk"
+"$BUILD_DIR/apksigner" verify --verbose "$TASK_DIR/output/v3.4.2-dayreport.apk"
+"$BUILD_DIR/aapt" dump badging "$TASK_DIR/output/v3.4.2-dayreport.apk"
