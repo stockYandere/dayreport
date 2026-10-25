@@ -53,7 +53,19 @@ public final class SleepLogic {
  }
  // 4시간 이상 휴대폰을 쓰지 않은 구간. 낮·밤, 날짜 경계와 상관없이 양쪽 끝이 관측된 것만.
  // awakeNow: 지금 이 앱을 보고 있으면 지금 이 순간은 짧아도 깨어 있는 시점(기상)으로 넣어 진행 중인 미사용 구간을 닫는다.
- public static List<Gap> awakeGaps(List<Event> events,long from,long now,boolean awakeNow,Set<String> ignore){List<Gap> awake=withoutBriefWakes(awakeSpans(events,from,now,ignore));if(awakeNow)awake.add(new Gap(now,now+1));List<Gap> out=new ArrayList<Gap>();for(Gap g:unusedGaps(awake,0,Long.MAX_VALUE,MIN_CANDIDATE))if(g.end<=now)out.add(g);return out;}
+ // work: 근무 시간. 근무 중은 깨어 있는 것으로 보고 후보를 근무 경계에서 끊는다(남은 부분이 4시간 이상일 때만 후보).
+ public static List<Gap> awakeGaps(List<Event> events,long from,long now,boolean awakeNow,Set<String> ignore){return awakeGaps(events,from,now,awakeNow,ignore,Collections.<Gap>emptyList());}
+ public static List<Gap> awakeGaps(List<Event> events,long from,long now,boolean awakeNow,Set<String> ignore,List<Gap> work){List<Gap> awake=withoutBriefWakes(awakeSpans(events,from,now,ignore));awake.addAll(work);if(awakeNow)awake.add(new Gap(now,now+1));List<Gap> out=new ArrayList<Gap>();for(Gap g:unusedGaps(awake,0,Long.MAX_VALUE,MIN_CANDIDATE))if(g.end<=now)out.add(g);return out;}
+ // 근무 시간: 요일별(월=0 … 일=6) {켜짐 1/0, 시작 분, 끝 분}. 끝이 시작보다 이르면 다음 날 그 시각까지.
+ // from–to와 겹치는 근무 구간을 현지 시각(서머타임 포함)으로 만든다.
+ public static List<Gap> workSpans(int[][] week,long from,long to){
+  List<Gap> out=new ArrayList<Gap>();Calendar day=Calendar.getInstance();day.setTimeInMillis(from);day.set(Calendar.HOUR_OF_DAY,0);day.set(Calendar.MINUTE,0);day.set(Calendar.SECOND,0);day.set(Calendar.MILLISECOND,0);day.add(Calendar.DATE,-1);// 전날 밤에서 이어지는 근무
+  while(day.getTimeInMillis()<to){int[] w=week[(day.get(Calendar.DAY_OF_WEEK)+5)%7];
+   if(w[0]==1&&w[1]!=w[2]){Calendar s=(Calendar)day.clone(),e=(Calendar)day.clone();s.set(Calendar.HOUR_OF_DAY,w[1]/60);s.set(Calendar.MINUTE,w[1]%60);if(w[2]<w[1])e.add(Calendar.DATE,1);e.set(Calendar.HOUR_OF_DAY,w[2]/60);e.set(Calendar.MINUTE,w[2]%60);
+    long a=Math.max(from,s.getTimeInMillis()),b=Math.min(to,e.getTimeInMillis());if(b>a)out.add(new Gap(a,b));}
+   day.add(Calendar.DATE,1);}
+  return out;
+ }
  public static boolean valid(long start,long end,long now){return start>0&&end>start&&end-start<=24L*3600000&&end<=now+60000;}
  public static class Session {public long start,end; public String pkg;public Session(long s,long e,String p){start=s;end=e;pkg=p;} }
  public static List<Session> sessions(List<Event> events,long start,long end){

@@ -129,6 +129,8 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   @JavascriptInterface public String usage(long date){try{return UsageReader.usage(MainActivity.this,date).toString();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String save(String data){try{store.save(new JSONObject(data));return new JSONObjectResult(true,"저장했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public String remove(long id){try{store.remove(id);return new JSONObjectResult(true,"처리했어").text();}catch(Exception e){return error(e);}}
+  @JavascriptInterface public String workHours(){try{return new JSONObject().put("ok",true).put("days",WorkHours.json(WorkHours.load(MainActivity.this))).toString();}catch(Exception e){return error(e);}}
+  @JavascriptInterface public String saveWorkHours(String days){try{WorkHours.save(MainActivity.this,days);return new JSONObjectResult(true,"근무 시간을 저장했어").text();}catch(Exception e){return error(e);}}
   @JavascriptInterface public void minimum(int min){getSharedPreferences("settings",0).edit().putInt("minimum",(int)(SleepLogic.MIN_CANDIDATE/60000)).apply();}
   @JavascriptInterface public void timer(long time){if(time>=0&&time<=System.currentTimeMillis())getSharedPreferences("settings",0).edit().putLong("timer",time).commit();}
   @JavascriptInterface public void permission(){runOnUiThread(new Runnable(){public void run(){openUsageAccessSettings();}});}
