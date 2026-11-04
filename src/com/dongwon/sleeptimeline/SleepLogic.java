@@ -66,6 +66,12 @@ public final class SleepLogic {
    day.add(Calendar.DATE,1);}
   return out;
  }
+ // 자동 확정: 최근 30일 확정 수면 중 시작 시각이 ±1시간, 길이가 ±1시간 안인 기록이 2개 이상이면 평소와 비슷한 잠으로 본다.
+ public static final long AUTO_LOOKBACK=30L*86400000,AUTO_TIME_TOL=60L*60000,AUTO_LENGTH_TOL=60L*60000;public static final int AUTO_MIN_MATCHES=2;
+ public static boolean matchesUsual(long start,long end,List<Gap> past){int n=0;for(Gap p:past){if(p.end>start-AUTO_LOOKBACK&&p.start!=start&&clockDistance(start,p.start)<=AUTO_TIME_TOL&&Math.abs((end-start)-(p.end-p.start))<=AUTO_LENGTH_TOL)n++;}return n>=AUTO_MIN_MATCHES;}
+ // 하루 시각끼리의 거리(자정을 넘어 감싼다). 23:30과 00:20은 50분.
+ public static long clockDistance(long a,long b){long d=Math.abs(minuteOfDay(a)-minuteOfDay(b));return Math.min(d,1440-d)*60000L;}
+ static long minuteOfDay(long t){Calendar c=Calendar.getInstance();c.setTimeInMillis(t);return c.get(Calendar.HOUR_OF_DAY)*60+c.get(Calendar.MINUTE);}
  public static boolean valid(long start,long end,long now){return start>0&&end>start&&end-start<=24L*3600000&&end<=now+60000;}
  public static class Session {public long start,end; public String pkg;public Session(long s,long e,String p){start=s;end=e;pkg=p;} }
  public static List<Session> sessions(List<Event> events,long start,long end){

@@ -10,6 +10,20 @@ public class Store extends SQLiteOpenHelper {
  // 이미 있는 후보·삭제한 후보와 양방향 80% 이상 겹치면 같은 구간으로 보고 다시 만들지 않는다.
  private boolean similar(SQLiteDatabase d,long start,long end){Cursor c=d.rawQuery("SELECT start,end FROM records WHERE state!='confirmed' AND start<? AND end>?",new String[]{""+end,""+start});try{while(c.moveToNext()){long s=c.getLong(0),e=c.getLong(1),overlap=Math.min(end,e)-Math.max(start,s);if(overlap>0&&overlap>=.8*(end-start)&&overlap>=.8*(e-s))return true;}return false;}finally{c.close();}}
  public synchronized void save(JSONObject r) throws Exception {SQLiteDatabase d=getWritableDatabase();long s=r.getLong("start"),e=r.getLong("end"),id=r.optLong("id",-1);String kind=r.optString("kind","sleep"),note=r.optString("note","");if(!SleepLogic.valid(s,e,System.currentTimeMillis()))throw new Exception("시작·종료 시간을 확인해 줘. 미래 시간과 24시간 넘는 기록은 저장할 수 없어.");if(!kind.equals("sleep")&&!kind.equals("nap"))throw new Exception("기록 종류가 올바르지 않아.");if(note.length()>160)throw new Exception("메모는 160자까지 입력할 수 있어.");d.beginTransaction();try{if(id<=0){Cursor existing=d.rawQuery("SELECT id FROM records WHERE start=? AND end=? AND state!='confirmed'",new String[]{""+s,""+e});try{if(existing.moveToFirst())id=existing.getLong(0);}finally{existing.close();}}if(conflict(d,s,e,id))throw new Exception("이미 저장한 수면 시간과 겹쳐. 기존 기록을 수정해 줘.");ContentValues v=new ContentValues();v.put("start",s);v.put("end",e);v.put("state","confirmed");v.put("kind",kind);v.put("zone",r.optString("zone",TimeZone.getDefault().getID()));v.put("note",note);if(id>0){if(d.update("records",v,"id=?",new String[]{""+id})!=1)throw new Exception("이 기록을 찾을 수 없어.");}else{if(d.insert("records",null,v)==-1)throw new Exception("동일한 기록이 있어.");}ContentValues dismissed=new ContentValues();dismissed.put("state","dismissed");d.update("records",dismissed,"state='candidate' AND start<? AND end>?",new String[]{""+e,""+s});d.setTransactionSuccessful();}finally{d.endTransaction();}}
+ static final String AUTO_NOTE="자동 확정 · 평소와 비슷한 시간";
+ /* 평소와 비슷한 미확정 후보를 자동 확정한다. 확정 기록과 겹치면 건너뛰고, 겹치는 다른 후보는 정리한다. 확정한 개수를 돌려준다. */
+ public synchronized int autoConfirm(long now){
+  SQLiteDatabase d=getWritableDatabase();List<SleepLogic.Gap> past=new ArrayList<SleepLogic.Gap>();
+  Cursor c=d.rawQuery("SELECT start,end FROM records WHERE state='confirmed' AND kind='sleep' AND end>=?",new String[]{""+(now-SleepLogic.AUTO_LOOKBACK-86400000)});try{while(c.moveToNext())past.add(new SleepLogic.Gap(c.getLong(0),c.getLong(1)));}finally{c.close();}
+  List<long[]> pending=new ArrayList<long[]>();c=d.rawQuery("SELECT id,start,end FROM records WHERE state='candidate' AND end<=? AND end-start>=? ORDER BY end ASC",new String[]{""+now,""+SleepLogic.MIN_CANDIDATE});try{while(c.moveToNext())pending.add(new long[]{c.getLong(0),c.getLong(1),c.getLong(2)});}finally{c.close();}
+  int count=0;d.beginTransaction();try{for(long[] r:pending){
+   if(conflict(d,r[1],r[2],r[0])||!SleepLogic.matchesUsual(r[1],r[2],past))continue;
+   ContentValues v=new ContentValues();v.put("state","confirmed");v.put("kind","sleep");v.put("note",AUTO_NOTE);if(d.update("records",v,"id=? AND state='candidate'",new String[]{""+r[0]})!=1)continue;
+   ContentValues dismissed=new ContentValues();dismissed.put("state","dismissed");d.update("records",dismissed,"state='candidate' AND id!=? AND start<? AND end>?",new String[]{""+r[0],""+r[2],""+r[1]});
+   past.add(new SleepLogic.Gap(r[1],r[2]));count++;}
+   d.setTransactionSuccessful();}finally{d.endTransaction();}
+  return count;
+ }
  public synchronized void remove(long id){ContentValues v=new ContentValues();v.put("state","dismissed");getWritableDatabase().update("records",v,"id=?",new String[]{""+id});}
  public synchronized boolean isDismissed(long start,long end){
   Cursor c=getReadableDatabase().rawQuery("SELECT start,end FROM records WHERE state='dismissed' AND start<? AND end>?",new String[]{""+end,""+start});

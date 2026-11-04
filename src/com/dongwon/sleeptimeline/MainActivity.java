@@ -39,7 +39,7 @@ public class MainActivity extends Activity implements DashboardView.Actions {
   if(!UsageReader.allowed(this))return;
   final int token=++generation;dashboard.setLoading(true);
   executor.execute(new Runnable(){public void run(){try{
-   final List<Models.DayRecord> days=repository.loadSevenDays();final List<SleepLogic.Gap> gaps=UsageReader.awakeGaps(MainActivity.this,true);final JSONArray records=store.all();
+   final List<Models.DayRecord> days=repository.loadSevenDays();final List<SleepLogic.Gap> gaps=UsageReader.awakeGaps(MainActivity.this,true);store.autoConfirm(System.currentTimeMillis());final JSONArray records=store.all();
    runOnUiThread(new Runnable(){public void run(){if(token!=generation||isDestroyed())return;nativeDays=days;unusedGaps=gaps;dashboard.setUnusedGaps(gaps);dashboard.setData(days);dashboard.setSleepRecords(records);}});
   }catch(final Exception e){runOnUiThread(new Runnable(){public void run(){if(token!=generation||isDestroyed())return;dashboard.setError("기록을 읽지 못했어. 사용정보 접근을 확인한 뒤 새로고침해 줘.");}});}}});
  }
@@ -56,11 +56,14 @@ public class MainActivity extends Activity implements DashboardView.Actions {
  void showDashboard(final int page){showDashboard(page,-1);}
  void showDashboard(final int page,final long day){runOnUiThread(new Runnable(){public void run(){web.setVisibility(View.GONE);dashboard.setVisibility(View.VISIBLE);if(page>=0)dashboard.setPage(page);if(day>0)dashboard.selectDayStart(day);refreshData();}});}
  // 막대를 누르면 그 시간의 사용을 묶음 단위로 보여 준다. 10분 안에 이어서 쓴 앱들은 한 줄.
- public void showAppsAt(long hour,List<Models.Session> sessions){
+ public void showAppsAt(long hour,List<Models.Session> sessions,List<long[]> sleeps){
   java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("HH:mm",Locale.KOREA);
   List<Models.UseBlock> blocks=Models.blocks(sessions,hour,hour+3600000,Models.BLOCK_GAP);
-  String note=blocks.isEmpty()?null:"총 "+duration(Models.union(sessions,hour,hour+3600000))+" · "+blocks.size()+"번 사용 · 10분 안에 이어 쓴 앱은 한 줄로 묶어";
-  blockDialog(f.format(new Date(hour))+"–"+f.format(new Date(hour+3600000))+" 사용",blocks,note,"이 시간에는 사용 기록이 없어.");
+  StringBuilder note=new StringBuilder();
+  // 확정한 수면(이 시간 안 부분)을 맨 위에.
+  for(long[] z:sleeps){if(note.length()>0)note.append('\n');note.append(z[2]==1?"낮잠 ":"수면 ").append(range(f,z[0],z[1])).append(" · ").append(duration(z[1]-z[0]));}
+  if(!blocks.isEmpty()){if(note.length()>0)note.append('\n');note.append("총 ").append(duration(Models.union(sessions,hour,hour+3600000))).append(" · ").append(blocks.size()).append("번 사용 · 10분 안에 이어 쓴 앱은 한 줄로 묶어");}
+  blockDialog(f.format(new Date(hour))+"–"+f.format(new Date(hour+3600000))+" 사용",blocks,note.length()==0?null:note.toString(),sleeps.isEmpty()?"이 시간에는 사용 기록이 없어.":null);
  }
  public void showAppSessions(Models.AppTotal total,long day){
   String date=new java.text.SimpleDateFormat("M월 d일",Locale.KOREA).format(new Date(day));

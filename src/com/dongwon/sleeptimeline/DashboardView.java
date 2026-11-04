@@ -99,7 +99,7 @@ final class DashboardView extends View {
         void openWebPage(String tab);
         void showSleepCandidates(long day,long start,long end);
 
-        void showAppsAt(long hourStart, List<Models.Session> sessions);
+        void showAppsAt(long hourStart, List<Models.Session> sessions, List<long[]> sleeps);
 
         void showAppSessions(Models.AppTotal total, long dayStart);
     }
@@ -380,6 +380,7 @@ final class DashboardView extends View {
             RectF bar = new RectF(center - barWidth / 2.0f, top, center + barWidth / 2.0f, bottom);
             drawRoundRect(canvas, bar, radius, -15262683);
             HourlyBucket bucket = hourlyBucket(dayRecord, hour);
+            drawSleep(canvas, dayRecord.dayStart + hour * HOUR_MS, bar, radius);
             drawTenMinuteSlots(canvas, tenMinuteSlots(dayRecord, hour), dayRecord.dayStart + hour * HOUR_MS, bar, radius);
             this.paint.setStyle(Paint.Style.STROKE);
             this.paint.setStrokeWidth(dp(current ? 2.5f : 1.0f));
@@ -459,6 +460,47 @@ final class DashboardView extends View {
         long from = Math.max(0, Math.min(59, (start - hourStart) / 60000));
         long to = Math.max(from + 1, Math.min(60, (end - hourStart + 59999) / 60000));
         return String.format(Locale.KOREA, "%02d–%02d", from, to);
+    }
+
+    static final int SLEEP_COLOR = 0xFFAAA1FF, NAP_COLOR = 0xFF84D9CA;
+
+    // 확정한 수면·낮잠을 실제 시각 위치에 수면 색으로 칠하고 "수면"을 적는다. 앱 사용은 그 위에 그려 깬 때가 보인다.
+    private void drawSleep(Canvas canvas, long hourStart, RectF bar, float radius) {
+        List<long[]> spans = sleepIn(sleepSpans, hourStart, hourStart + HOUR_MS);
+        if (spans.isEmpty()) {
+            return;
+        }
+        float scale = bar.height() / HOUR_MS;
+        Path path = new Path();
+        path.addRoundRect(bar, radius, radius, Path.Direction.CW);
+        canvas.save();
+        canvas.clipPath(path);
+        for (long[] span : spans) {
+            this.paint.setColor(span[2] == 1 ? NAP_COLOR : SLEEP_COLOR);
+            canvas.drawRect(bar.left, bar.top + (span[0] - hourStart) * scale, bar.right, Math.max(bar.top + (span[0] - hourStart) * scale + dp(2.0f), bar.top + (span[1] - hourStart) * scale), this.paint);
+        }
+        canvas.restore();
+        for (long[] span : spans) {
+            float y1 = bar.top + (span[0] - hourStart) * scale, y2 = bar.top + (span[1] - hourStart) * scale;
+            String label = span[2] == 1 ? "낮잠" : "수면";
+            if (y2 - y1 >= dp(27.0f)) {
+                drawText(canvas, label, bar.centerX(), (y1 + y2) / 2.0f - dp(1.5f), 9.0f, BG, true, Paint.Align.CENTER);
+                drawText(canvas, minuteRange(span[0], span[1], hourStart), bar.centerX(), (y1 + y2) / 2.0f + dp(9.5f), 8.0f, BG, false, Paint.Align.CENTER);
+            } else if (y2 - y1 >= dp(12.0f)) {
+                drawText(canvas, label, bar.centerX(), (y1 + y2) / 2.0f + dp(3.0f), 8.5f, BG, true, Paint.Align.CENTER);
+            }
+        }
+    }
+
+    // 확정 기록 중 [from, to)와 겹치는 부분. {시작, 끝, 낮잠이면 1}.
+    static List<long[]> sleepIn(List<long[]> spans, long from, long to) {
+        List<long[]> out = new ArrayList<>();
+        for (long[] s : spans) {
+            if (s[0] < to && s[1] > from) {
+                out.add(new long[]{Math.max(from, s[0]), Math.min(to, s[1]), s[2]});
+            }
+        }
+        return out;
     }
 
     // 밝은 색(주황·노랑·초록 등) 위에는 어두운 글자, 어두운 색(빨강·파랑·남색·보라) 위에는 흰 글자.
@@ -623,11 +665,22 @@ final class DashboardView extends View {
 
     private void drawTimelineLegend(Canvas canvas, Models.DayRecord dayRecord, float f, float f2, float f3) {
         int min = Math.min(4, dayRecord.totals.size());
-        if (min == 0) {
+        Calendar next = Calendar.getInstance();
+        next.setTimeInMillis(dayRecord.dayStart);
+        next.add(Calendar.DATE, 1);
+        boolean slept = !sleepIn(sleepSpans, dayRecord.dayStart, next.getTimeInMillis()).isEmpty();
+        if (min == 0 && !slept) {
             drawText(canvas, "기록 없음", f, f2, 10.0f, SUBTLE, false, Paint.Align.LEFT);
             return;
         }
         float f4 = f;
+        if (slept) {
+            this.paint.setColor(SLEEP_COLOR);
+            canvas.drawCircle(dp(3.0f) + f4, f2 - dp(3.0f), dp(3.0f), this.paint);
+            drawText(canvas, "수면", f4 + dp(10.0f), f2, 9.0f, MUTED, false, Paint.Align.LEFT);
+            f4 += textWidth("수면", 9.0f) + dp(22.0f);
+            min = Math.min(3, min);
+        }
         for (int i = 0; i < min; i++) {
             Models.AppTotal appTotal = dayRecord.totals.get(i);
             this.paint.setColor(appTotal.app.color);
@@ -1075,7 +1128,7 @@ final class DashboardView extends View {
                     inHour.add(session);
                 }
             }
-            this.actions.showAppsAt(hourStart, inHour);
+            this.actions.showAppsAt(hourStart, inHour, sleepIn(sleepSpans, hourStart, hourStart + HOUR_MS));
         }
     }
 
@@ -1088,7 +1141,8 @@ final class DashboardView extends View {
     // 데이터가 아직 없으면 다음 setData에서 이 날짜를 고른다.
     void selectDayStart(long dayStart){pendingDayStart=dayStart;for(int n=0;n<days.size();n++)if(days.get(n).dayStart==dayStart){selectedDay=n;appListPage=0;needsTimelinePosition=true;invalidate();return;}}
     boolean backToTimeline(){if(page!=0){page=0;invalidate();return true;}return false;}
-    void setSleepRecords(org.json.JSONArray records){sleepRecords=records;invalidate();}
+    private List<long[]> sleepSpans=new ArrayList<>();
+    void setSleepRecords(org.json.JSONArray records){sleepRecords=records;List<long[]> spans=new ArrayList<>();for(int n=0;n<records.length();n++){org.json.JSONObject r=records.optJSONObject(n);if(r!=null&&"confirmed".equals(r.optString("state"))&&r.optLong("end")>r.optLong("start"))spans.add(new long[]{r.optLong("start"),r.optLong("end"),"nap".equals(r.optString("kind"))?1:0});}sleepSpans=spans;invalidate();}
     private boolean hasSleepRecord(long start,long end){for(int n=0;n<sleepRecords.length();n++){org.json.JSONObject r=sleepRecords.optJSONObject(n);if(r!=null&&"confirmed".equals(r.optString("state"))&&r.optLong("start")<end&&r.optLong("end")>start)return true;}return false;}
     private List<SleepLogic.Gap> unusedGaps=new ArrayList<>();
     void setUnusedGaps(List<SleepLogic.Gap> gaps){unusedGaps=gaps;invalidate();}
